@@ -1,0 +1,135 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+
+  background: #0f172a;
+
+  font-family: Arial, Helvetica, sans-serif;
+
+}
+
+.container {
+
+  width: 100%;
+
+  min-height: 100vh;
+
+  display: flex;
+
+  justify-content: center;
+
+  align-items: center;
+
+  padding: 40px;
+
+}
+
+.card {
+
+  width: 500px;
+
+  background: white;
+
+  border-radius: 18px;
+
+  padding: 35px;
+
+  box-shadow: 0 15px 40px rgba(0,0,0,.25);
+
+  text-align: center;
+
+}
+
+.card h1{
+
+  font-size:48px;
+
+  margin-bottom:10px;
+
+}
+
+.subtitle{
+
+  color:#777;
+
+  margin-bottom:30px;
+
+}
+
+.dropzone{
+
+  border:3px dashed #3b82f6;
+
+  border-radius:15px;
+
+  padding:45px 20px;
+
+  cursor:pointer;
+
+  transition:.3s;
+
+}
+
+.dropzone:hover{
+
+  background:#eff6ff;
+
+}
+
+.dropzone h2{
+
+  margin-bottom:10px;
+
+}
+
+.fileInfo{
+
+  margin-top:30px;
+
+  padding:20px;
+
+  background:#f4f4f4;
+
+  border-radius:12px;
+
+}
+
+.room{
+
+  margin-top:30px;
+
+}
+
+.room h2{
+
+  letter-spacing:8px;
+
+  margin-top:20px;
+
+  margin-bottom:10px;
+
+}
+
+.connected{
+
+  color:#16a34a;
+
+  font-weight:bold;
+
+}
+
+small{
+
+  display:block;
+
+  margin-top:25px;
+
+  color:#777;
+
+  word-break:break-all;
+
+}
