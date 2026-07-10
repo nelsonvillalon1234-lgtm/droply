@@ -1,26 +1,21 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-  "dev": "tsx watch src/server.ts",
-  "start": "tsx src/server.ts"
-},
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts"
+  },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "tsx": "^4.23.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1",
-    "tsx": "^4.23.0",
     "typescript": "^5.9.2"
   }
 }
