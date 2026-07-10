@@ -118,22 +118,23 @@ function Join() {
 
                 />
 
-                <button
+                {!code && (
 
-                    onClick={connect}
+    <button
+        onClick={connect}
+        style={{
+            marginTop: "20px",
+            width: "100%",
+            padding: "15px",
+            cursor: "pointer"
+        }}
+    >
 
-                    style={{
-                        marginTop: "20px",
-                        width: "100%",
-                        padding: "15px",
-                        cursor: "pointer"
-                    }}
+        Conectar
 
-                >
+    </button>
 
-                    Conectar
-
-                </button>
+)}
 
             </div>
 

@@ -28,6 +28,15 @@ class PeerManager {
             ]
 
         });
+        this.peer.onsignalingstatechange = () => {
+
+console.log(
+    "📡 Signaling:",
+    this.peer?.signalingState
+);
+
+};
+
 
         this.peer.onconnectionstatechange = () => {
 
@@ -40,6 +49,7 @@ class PeerManager {
             console.log("🧊", this.peer?.iceConnectionState);
 
         };
+        
 
         this.peer.onicecandidate = ({ candidate }) => {
 

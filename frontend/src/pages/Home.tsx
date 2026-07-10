@@ -38,18 +38,22 @@ function Home() {
 
     console.log("📱 Receptor conectado");
 
-    setConnected(true);
+    console.log(
+        "Estado actual:",
+        PeerManager["peer"]?.signalingState
+    );
 
     PeerManager.createChannel();
 
     const offer = await PeerManager.createOffer();
 
+    console.log(
+        "Offer enviada"
+    );
+
     socket.emit("offer", {
-
         room: roomRef.current,
-
         offer
-
     });
 
 });
