@@ -51,25 +51,36 @@ console.log(
 
         this.peer.oniceconnectionstatechange = () => {
 
-            console.log("🧊", this.peer?.iceConnectionState);
+    console.log("🧊", this.peer?.iceConnectionState);
 
-        };
+};
+
+this.peer.onicegatheringstatechange = () => {
+
+    console.log(
+        "🧊 Gathering:",
+        this.peer?.iceGatheringState
+    );
+
+};
         
 
         this.peer.onicecandidate = ({ candidate }) => {
 
-            if (!candidate)
-                return;
+    console.log("🧊 Candidato:", candidate);
 
-            socket.emit("ice-candidate", {
+    if (!candidate)
+        return;
 
-                room: this.room,
+    socket.emit("ice-candidate", {
 
-                candidate
+        room: this.room,
 
-            });
+        candidate
 
-        };
+    });
+
+};
 
         this.peer.ondatachannel = ({ channel }) => {
 
