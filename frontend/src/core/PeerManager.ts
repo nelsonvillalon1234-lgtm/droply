@@ -5,6 +5,7 @@ class PeerManager {
     private peer: RTCPeerConnection | null = null;
     private channel: RTCDataChannel | null = null;
     private room = "";
+    private isOpen = false;
 
     initialize(room: string) {
 
@@ -76,6 +77,8 @@ class PeerManager {
        this.channel.onopen = () => {
 
     console.log("🟢 DataChannel abierto");
+
+    this.isOpen = true;
 
     this.channel?.send("Hola desde " + this.room);
 
@@ -271,6 +274,13 @@ this.channel.onmessage = ({ data }) => {
     }));
 
     console.log("✅ Archivo enviado");
+
+}
+
+
+isReady() {
+
+    return this.isOpen;
 
 }
 

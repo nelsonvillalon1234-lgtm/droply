@@ -44,8 +44,6 @@ function Home() {
 
     const offer = await PeerManager.createOffer();
 
-    console.log("Offer creada:", offer);
-
     socket.emit("offer", {
 
         room: roomRef.current,
@@ -227,16 +225,27 @@ function Home() {
     }}
     onClick={async () => {
 
-        console.log("🚀 BOTÓN PULSADO");
+    console.log("🚀 BOTÓN PULSADO");
 
-        if (!selectedFile) {
-            console.log("❌ No hay archivo");
-            return;
-        }
+    if (!selectedFile) {
 
-        await PeerManager.sendFile(selectedFile);
+        console.log("❌ No hay archivo");
 
-    }}
+        return;
+
+    }
+
+    if (!PeerManager.isReady()) {
+
+        alert("⌛ Espera unos segundos, la conexión aún no está lista.");
+
+        return;
+
+    }
+
+    await PeerManager.sendFile(selectedFile);
+
+}}
 >
     🚀 Enviar archivo
 </button>
