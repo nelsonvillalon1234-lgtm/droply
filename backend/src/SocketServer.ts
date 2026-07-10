@@ -1,13 +1,20 @@
-import { Server } from "socket.io";
-import registerSocketEvents from "./socket/index";
+import { Server, Socket } from "socket.io";
+
+import registerRoomEvents from "./socket/RoomEvents.js";
+import registerConnectionEvents from "./socket/ConnectionEvents.js";
+import registerWebRTCEvents from "./socket/WebRTCEvents.js";
 
 export default function setupSocket(io: Server) {
 
-    io.on("connection", (socket) => {
+    io.on("connection", (socket: Socket) => {
 
         console.log("🟢 Nuevo cliente:", socket.id);
 
-        registerSocketEvents(io, socket);
+        registerConnectionEvents(socket);
+
+        registerRoomEvents(socket);
+
+        registerWebRTCEvents(socket);
 
     });
 

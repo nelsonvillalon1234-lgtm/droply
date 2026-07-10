@@ -1,8 +1,8 @@
 import { Server, Socket } from "socket.io";
 
-import registerConnectionEvents from "./ConnectionEvents";
-import registerRoomEvents from "./RoomEvents";
-import registerWebRTCEvents from "./WebRTCEvents";
+import registerConnectionEvents from "./ConnectionEvents.js";
+import registerRoomEvents from "./RoomEvents.js";
+import registerWebRTCEvents from "./WebRTCEvents.js";
 
 export default function registerSocketEvents(
     io: Server,

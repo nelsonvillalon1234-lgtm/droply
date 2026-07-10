@@ -1,5 +1,5 @@
 import { Socket } from "socket.io";
-import RoomManager from "../services/RoomManager";
+import RoomManager from "../services/RoomManager.js";
 
 export default function registerRoomEvents(
     socket: Socket
