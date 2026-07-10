@@ -189,12 +189,9 @@ function Home() {
                     <div className="room">
 
                         <QRCodeSVG
-
-                            value={`https://material-specializing-believe-vernon.trycloudflare.com/join/${roomCode}`}
-
-                            size={180}
-
-                        />
+    value={`https://droply-three-amber.vercel.app/join/${roomCode}`}
+    size={180}
+/>
 
                         <h2>
 
