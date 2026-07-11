@@ -97,18 +97,35 @@ this.peer.onicegatheringstatechange = () => {
 
         this.peer.onicecandidate = ({ candidate }) => {
 
-    console.log("🧊 ICE:", candidate?.candidate);
+    if (candidate) {
+
+        console.log(
+            "🧊 ICE:",
+            candidate.type,
+            candidate.candidate
+        );
+
+    } else {
+
+        console.log("🧊 FIN ICE");
+
+    }
 
     if (!candidate)
         return;
 
     socket.emit("ice-candidate", {
-
         room: this.room,
-
         candidate
-
     });
+
+};
+this.peer.onconnectionstatechange = () => {
+
+    console.log(
+        "🌐 Estado:",
+        this.peer?.connectionState
+    );
 
 };
 
