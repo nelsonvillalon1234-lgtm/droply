@@ -7,6 +7,8 @@ class PeerManager {
     private room = "";
     private isOpen = false;
 
+    private onProgressCallback?: (progress: number) => void;
+
     initialize(room: string) {
 
         this.room = room;
@@ -283,12 +285,17 @@ this.channel.onmessage = ({ data }) => {
 
     }
 
-    send(message: string) {
-        
+    ssend(message: string) {
 
-        this.channel?.send(message);
+    this.channel?.send(message);
 
-    }
+}
+
+setOnProgress(callback: (progress: number) => void) {
+
+    this.onProgressCallback = callback;
+
+}
     
  async sendFile(file: File) {
 
@@ -332,11 +339,17 @@ this.channel.onmessage = ({ data }) => {
 
         offset += CHUNK_SIZE;
 
-        console.log(
+const progress = Math.min(
 
-            `📤 ${Math.floor(offset / file.size * 100)}%`
+    Math.floor((offset / file.size) * 100),
 
-        );
+    100
+
+);
+
+console.log(`📤 ${progress}%`);
+
+this.onProgressCallback?.(progress);
 
     }
 

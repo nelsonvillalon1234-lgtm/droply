@@ -12,11 +12,13 @@ function Home() {
     const [socketId, setSocketId] = useState("");
     const [roomCode, setRoomCode] = useState("");
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [progress, setProgress] = useState(0);
     const [connected, setConnected] = useState(false);
 
     const roomRef = useRef("");
 
     useEffect(() => {
+        PeerManager.setOnProgress(setProgress);
 
         socket.on("connected", ({ id }) => {
 
@@ -210,46 +212,85 @@ function Home() {
 
                 {
 
-                    selectedFile && (
+    selectedFile && (
 
-                        <button
-    style={{
-        marginTop:20,
-        width:"100%",
-        padding:"15px",
-        cursor:"pointer",
-        fontSize:"18px"
-    }}
-    onClick={async () => {
+        <>
 
-    console.log("🚀 BOTÓN PULSADO");
+            <button
+                style={{
+                    marginTop: 20,
+                    width: "100%",
+                    padding: "15px",
+                    cursor: "pointer",
+                    fontSize: "18px"
+                }}
+                onClick={async () => {
 
-    if (!selectedFile) {
+                    console.log("🚀 BOTÓN PULSADO");
 
-        console.log("❌ No hay archivo");
+                    if (!selectedFile) {
 
-        return;
+                        console.log("❌ No hay archivo");
 
-    }
+                        return;
 
-    if (!PeerManager.isReady()) {
+                    }
 
-        alert("⌛ Espera unos segundos, la conexión aún no está lista.");
+                    if (!PeerManager.isReady()) {
 
-        return;
+                        alert("⌛ Espera unos segundos, la conexión aún no está lista.");
 
-    }
+                        return;
 
-    await PeerManager.sendFile(selectedFile);
+                    }
 
-}}
->
-    🚀 Enviar archivo
-</button>
+                    await PeerManager.sendFile(selectedFile);
 
-                    )
+                }}
+            >
+                🚀 Enviar archivo
+            </button>
 
-                }
+            {
+
+                progress > 0 && (
+
+                    <div
+                        style={{
+                            marginTop: 20,
+                            width: "100%"
+                        }}
+                    >
+
+                        <progress
+                            value={progress}
+                            max="100"
+                            style={{
+                                width: "100%",
+                                height: "25px"
+                            }}
+                        />
+
+                        <p
+                            style={{
+                                textAlign: "center",
+                                marginTop: "10px"
+                            }}
+                        >
+                            📤 {progress}%
+                        </p>
+
+                    </div>
+
+                )
+
+            }
+
+        </>
+
+    )
+
+}
 
             </>
 

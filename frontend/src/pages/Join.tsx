@@ -1,3 +1,4 @@
+const [connected, setConnected] = useState(false);
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -19,9 +20,11 @@ function Join() {
 
         socket.on("joined-room", () => {
 
-            console.log("✅ Unido a la sala");
+    console.log("✅ Unido a la sala");
 
-        });
+    setConnected(true);
+
+});
 
         socket.on("offer", async (offer) => {
 
@@ -121,18 +124,18 @@ function Join() {
                 {!code && (
 
     <button
-        onClick={connect}
-        style={{
-            marginTop: "20px",
-            width: "100%",
-            padding: "15px",
-            cursor: "pointer"
-        }}
-    >
-
-        Conectar
-
-    </button>
+    onClick={connect}
+    disabled={connected}
+    style={{
+        marginTop: "20px",
+        width: "100%",
+        padding: "15px",
+        cursor: connected ? "default" : "pointer",
+        opacity: connected ? 0.5 : 1
+    }}
+>
+    {connected ? "Conectado ✅" : "Conectar"}
+</button>
 
 )}
 
