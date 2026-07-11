@@ -285,11 +285,12 @@ this.channel.onmessage = ({ data }) => {
 
     }
 
-    ssend(message: string) {
+    send(message: string) {
 
     this.channel?.send(message);
 
 }
+
 
 setOnProgress(callback: (progress: number) => void) {
 
