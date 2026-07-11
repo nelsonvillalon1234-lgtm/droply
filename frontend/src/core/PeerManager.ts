@@ -67,17 +67,17 @@ this.peer.onicegatheringstatechange = () => {
 
         this.peer.onicecandidate = ({ candidate }) => {
 
-    console.log("🧊 Candidato:", candidate);
+    console.log(
+        "🧊 ICE:",
+        candidate?.candidate
+    );
 
     if (!candidate)
         return;
 
     socket.emit("ice-candidate", {
-
         room: this.room,
-
         candidate
-
     });
 
 };

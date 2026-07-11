@@ -34,22 +34,15 @@ function Home() {
 
         });
 
-        socket.on("receiver-connected", async () => {
+       socket.on("receiver-connected", async () => {
 
     console.log("📱 Receptor conectado");
 
-    console.log(
-        "Estado actual:",
-        PeerManager["peer"]?.signalingState
-    );
+    setConnected(true);
 
     PeerManager.createChannel();
 
     const offer = await PeerManager.createOffer();
-
-    console.log(
-        "Offer enviada"
-    );
 
     socket.emit("offer", {
         room: roomRef.current,
