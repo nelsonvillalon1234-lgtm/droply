@@ -16,23 +16,45 @@ class PeerManager {
 
         this.peer = new RTCPeerConnection({
 
-            iceServers: [
-  {
-    urls: [
-      "stun:openrelay.metered.ca:80"
-    ]
-  },
-  {
-    urls: [
-      "turn:openrelay.metered.ca:80",
-      "turn:openrelay.metered.ca:443"
-    ],
-    username: "openrelayproject",
-    credential: "openrelayproject"
-  }
-]
+    iceServers: [
 
-        });
+        {
+            urls: "stun:stun.relay.metered.ca:80",
+        },
+
+        {
+            urls: "turn:global.relay.metered.ca:80",
+            username: "ece28bddd8cc23d812e473dd",
+            credential: "xOAFCHt+pYSKQkYp",
+        },
+
+        {
+            urls: "turn:global.relay.metered.ca:80?transport=tcp",
+            username: "ece28bddd8cc23d812e473dd",
+            credential: "xOAFCHt+pYSKQkYp",
+        },
+
+        {
+            urls: "turn:global.relay.metered.ca:443",
+            username: "ece28bddd8cc23d812e473dd",
+            credential: "xOAFCHt+pYSKQkYp",
+        },
+
+        {
+            urls: "turns:global.relay.metered.ca:443?transport=tcp",
+            username: "ece28bddd8cc23d812e473dd",
+            credential: "xOAFCHt+pYSKQkYp",
+        }
+
+    ],
+
+    iceTransportPolicy: "all"
+
+});
+console.log(
+    "🧊 Configuración ICE:",
+    this.peer.getConfiguration()
+);
         this.peer.onsignalingstatechange = () => {
 
 console.log(
@@ -54,6 +76,14 @@ console.log(
     console.log("🧊", this.peer?.iceConnectionState);
 
 };
+this.peer.onicegatheringstatechange = () => {
+
+    console.log(
+        "🧊 Gathering:",
+        this.peer?.iceGatheringState
+    );
+
+};
 
 this.peer.onicegatheringstatechange = () => {
 
@@ -67,17 +97,17 @@ this.peer.onicegatheringstatechange = () => {
 
         this.peer.onicecandidate = ({ candidate }) => {
 
-    console.log(
-        "🧊 ICE:",
-        candidate?.candidate
-    );
+    console.log("🧊 ICE:", candidate?.candidate);
 
     if (!candidate)
         return;
 
     socket.emit("ice-candidate", {
+
         room: this.room,
+
         candidate
+
     });
 
 };
