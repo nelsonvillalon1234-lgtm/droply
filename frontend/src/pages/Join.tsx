@@ -1,4 +1,3 @@
-const [connected, setConnected] = useState(false);
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -13,7 +12,8 @@ function Join() {
 
     const [roomCode, setRoomCode] = useState(code?.toUpperCase() ?? "");
 
-    // Siempre tendrá el código más actualizado
+    const [connected, setConnected] = useState(false);
+
     const roomRef = useRef(code?.toUpperCase() ?? "");
 
     useEffect(() => {
