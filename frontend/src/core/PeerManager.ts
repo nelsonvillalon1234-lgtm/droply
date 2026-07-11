@@ -6,6 +6,7 @@ class PeerManager {
     private channel: RTCDataChannel | null = null;
     private room = "";
     private isOpen = false;
+    private onReceiveProgressCallback?: (progress: number) => void;
 
     private onProgressCallback?: (progress: number) => void;
 
@@ -178,6 +179,10 @@ let received: ArrayBuffer[] = [];
 
 let fileName = "";
 
+let totalSize = 0;
+
+let receivedSize = 0;
+
 this.channel.onmessage = ({ data }) => {
 
     if (typeof data === "string") {
@@ -194,15 +199,19 @@ this.channel.onmessage = ({ data }) => {
 
         if (message.type === "start") {
 
-            console.log("📥 Comenzando archivo:", message.name);
+    console.log("📥 Comenzando archivo:", message.name);
 
-            received = [];
+    received = [];
 
-            fileName = message.name;
+    fileName = message.name;
 
-            return;
+    totalSize = message.size;
 
-        }
+    receivedSize = 0;
+
+    return;
+
+}
 
         if (message.type === "end") {
 
@@ -231,7 +240,24 @@ this.channel.onmessage = ({ data }) => {
     console.log("📦", received.length + 1);
 
     if (data instanceof ArrayBuffer) {
+
     received.push(data);
+
+    receivedSize += data.byteLength;
+
+    const progress = Math.floor(
+
+        (receivedSize / totalSize) * 100
+
+    );
+
+    console.log(
+
+        `📥 Descargando: ${progress}%`
+
+    );
+    this.onReceiveProgressCallback?.(progress);
+
 }
 
 };
@@ -317,6 +343,12 @@ this.channel.onclose = () => {
 setOnProgress(callback: (progress: number) => void) {
 
     this.onProgressCallback = callback;
+
+}
+
+setOnReceiveProgress(callback: (progress: number) => void) {
+
+    this.onReceiveProgressCallback = callback;
 
 }
     

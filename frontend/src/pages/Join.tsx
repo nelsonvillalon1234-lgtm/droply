@@ -11,12 +11,17 @@ function Join() {
     const { code } = useParams();
 
     const [roomCode, setRoomCode] = useState(code?.toUpperCase() ?? "");
+    const [downloadProgress, setDownloadProgress] = useState(0);
 
     const [connected, setConnected] = useState(false);
 
     const roomRef = useRef(code?.toUpperCase() ?? "");
+    
 
     useEffect(() => {
+        PeerManager.setOnReceiveProgress(
+    setDownloadProgress
+);
 
         socket.on("joined-room", () => {
 
@@ -121,23 +126,58 @@ function Join() {
 
                 />
 
-                {!code && (
+               {!code && (
 
     <button
-    onClick={connect}
-    disabled={connected}
-    style={{
-        marginTop: "20px",
-        width: "100%",
-        padding: "15px",
-        cursor: connected ? "default" : "pointer",
-        opacity: connected ? 0.5 : 1
-    }}
->
-    {connected ? "Conectado ✅" : "Conectar"}
-</button>
+        onClick={connect}
+        disabled={connected}
+        style={{
+            marginTop: "20px",
+            width: "100%",
+            padding: "15px",
+            cursor: connected ? "default" : "pointer",
+            opacity: connected ? 0.5 : 1
+        }}
+    >
+        {connected ? "Conectado ✅" : "Conectar"}
+    </button>
 
 )}
+
+{
+
+    downloadProgress > 0 && (
+
+        <div
+            style={{
+                marginTop: "20px",
+                width: "100%"
+            }}
+        >
+
+            <progress
+                value={downloadProgress}
+                max="100"
+                style={{
+                    width: "100%",
+                    height: "25px"
+                }}
+            />
+
+            <p
+                style={{
+                    textAlign: "center",
+                    marginTop: "10px"
+                }}
+            >
+                📥 Descargando: {downloadProgress}%
+            </p>
+
+        </div>
+
+    )
+
+}
 
             </div>
 
