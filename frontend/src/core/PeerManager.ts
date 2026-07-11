@@ -75,7 +75,20 @@ console.log(
 
         this.peer.oniceconnectionstatechange = () => {
 
-    console.log("🧊", this.peer?.iceConnectionState);
+    console.log(
+        "🧊",
+        this.peer?.iceConnectionState
+    );
+
+    if (
+        this.peer?.iceConnectionState === "failed"
+    ) {
+
+        console.log(
+            "⚠️ Conexión perdida"
+        );
+
+    }
 
 };
 this.peer.onicegatheringstatechange = () => {
@@ -222,11 +235,20 @@ this.channel.onmessage = ({ data }) => {
 }
 
 };
-        this.channel.onclose = () => {
+        this.channel.onerror = (error) => {
 
-            console.log("🔴 DataChannel cerrado");
+    console.error(
+        "❌ Error DataChannel:",
+        error
+    );
 
-        };
+};
+
+this.channel.onclose = () => {
+
+    console.log("🔴 DataChannel cerrado");
+
+};
 
     }
 
@@ -308,7 +330,7 @@ setOnProgress(callback: (progress: number) => void) {
 
     }
 
-    const CHUNK_SIZE = 64 * 1024; // 64 KB
+    const CHUNK_SIZE = 8 * 1024;
 
     console.log("📤 Enviando:", file.name);
 
@@ -330,7 +352,7 @@ setOnProgress(callback: (progress: number) => void) {
 
         const buffer = await slice.arrayBuffer();
 
-        while (this.channel.bufferedAmount > 4 * 1024 * 1024) {
+        while (this.channel.bufferedAmount > 1024 * 1024) {
 
             await new Promise(resolve => setTimeout(resolve, 10));
 
