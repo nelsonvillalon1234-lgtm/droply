@@ -7,15 +7,17 @@ export default function registerRoomEvents(
 
     socket.on("create-room", () => {
 
-        const code = RoomManager.createRoom(socket.id);
+    console.log("🔥 create-room recibido");
 
-        socket.join(code);
+    const code = RoomManager.createRoom(socket.id);
 
-        socket.emit("room-created", code);
+    console.log("🏠 Sala creada:", code);
 
-        console.log("✅ Sala creada:", code);
+    socket.join(code);
 
-    });
+    socket.emit("room-created", code);
+
+});
 
     socket.on("join-room", (code: string) => {
 

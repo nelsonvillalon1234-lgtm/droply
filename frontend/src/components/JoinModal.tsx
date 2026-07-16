@@ -1,12 +1,6 @@
-import { useParams } from "react-router-dom";
+import ReceiveTransfer from "./ReceiveTransfer";
 
-import ReceiveTransfer from "../components/ReceiveTransfer";
-
-import "../styles/modal.css";
-
-function Join() {
-
-    const { code } = useParams();
+function JoinModal() {
 
     return (
 
@@ -28,7 +22,7 @@ function Join() {
 
                 <ReceiveTransfer
 
-                    initialCode={code ?? ""}
+                    showInput={true}
 
                 />
 
@@ -40,4 +34,4 @@ function Join() {
 
 }
 
-export default Join;
+export default JoinModal;

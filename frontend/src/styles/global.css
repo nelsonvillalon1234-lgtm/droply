@@ -7,10 +7,12 @@
 html,
 body,
 #root {
-
     width: 100%;
-
     min-height: 100vh;
-
     overflow-x: hidden;
+}
+
+body {
+    font-family: "Geist", sans-serif;
+    background: #f5f5f7;
 }

@@ -1,4 +1,5 @@
 import socket from "../services/socket";
+import HistoryManager from "./HistoryManager";
 
 class PeerManager {
 
@@ -7,8 +8,13 @@ class PeerManager {
     private room = "";
     private isOpen = false;
     private onReceiveProgressCallback?: (progress: number) => void;
-
     private onProgressCallback?: (progress: number) => void;
+    private onSpeedCallback?: (speed: string) => void;
+
+private onTimeCallback?: (time: string) => void;
+private onClipboardCallback?: (text: string) => void;
+
+private cancelled = false;
 
     initialize(room: string) {
 
@@ -49,9 +55,58 @@ class PeerManager {
             credential: "xOAFCHt+pYSKQkYp",
         }
 
-    ],
+    ]
 
-    iceTransportPolicy: "all"
+});
+console.log(
+    "Configuración ICE:",
+    this.peer.getConfiguration()
+);
+
+this.peer.oniceconnectionstatechange = () => {
+
+    console.log(
+        "ICE:",
+        this.peer?.iceConnectionState
+    );
+
+};
+
+this.peer.onconnectionstatechange = () => {
+
+    console.log(
+        "Estado:",
+        this.peer?.connectionState
+    );
+
+};
+        
+        ({
+
+            
+
+    iceServers: [
+
+    {
+        urls: [
+            "stun:stun.l.google.com:19302",
+            "stun:stun1.l.google.com:19302",
+        ],
+    },
+
+    {
+        urls: [
+            "turn:global.relay.metered.ca:80",
+            "turn:global.relay.metered.ca:443",
+            "turns:global.relay.metered.ca:443?transport=tcp",
+        ],
+        username: "ece28bddd8cc23d812e473dd",
+        credential: "xOAFCHt+pYSKQkYp",
+    }
+
+],
+
+    iceTransportPolicy: "relay"
 
 });
 console.log(
@@ -163,22 +218,20 @@ this.peer.onconnectionstatechange = () => {
             return;
 
         
-       this.channel.onopen = () => {
+    this.channel.onopen = () => {
 
-    console.log("🟢 DataChannel abierto");
+   console.log("🟢 DataChannel abierto");
 
     this.isOpen = true;
 
-    this.channel?.send("Hola desde " + this.room);
+    this.channel?.send("Hola desde " + this.room); };
 
-};
+
 
 
 
 let received: ArrayBuffer[] = [];
-
 let fileName = "";
-
 let totalSize = 0;
 
 let receivedSize = 0;
@@ -197,43 +250,105 @@ this.channel.onmessage = ({ data }) => {
 
         const message = JSON.parse(data);
 
-        if (message.type === "start") {
+        if (message.type === "clipboard") {
 
-    console.log("📥 Comenzando archivo:", message.name);
+    console.log(
 
-    received = [];
+        "📋 Portapapeles recibido:",
+
+        message.text
+
+    );
+
+    HistoryManager.save({
+
+        id: crypto.randomUUID(),
+
+        type: "clipboard",
+
+        name: message.text,
+
+        date: Date.now()
+
+    });
+
+    this.onClipboardCallback?.(
+
+        message.text
+
+    );
+
+    return;
+
+}
+
+       if (message.type === "start") {
 
     fileName = message.name;
+
+    received = [];
 
     totalSize = message.size;
 
     receivedSize = 0;
 
     return;
-
 }
 
         if (message.type === "end") {
 
-            console.log("✅ Archivo completo");
+    console.log("✅ Archivo completo");
 
-            const blob = new Blob(received.map(buffer => new Uint8Array(buffer)));
+    const blob = new Blob(
+        received.map(
+            buffer => new Uint8Array(buffer)
+        )
+    );
 
-            const url = URL.createObjectURL(blob);
+    console.log("Tamaño:", blob.size);
 
-            const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
 
-            a.href = url;
+    HistoryManager.save({
 
-            a.download = fileName;
+    id: crypto.randomUUID(),
 
-            a.click();
+    type: "file",
 
-            URL.revokeObjectURL(url);
+    name: fileName,
 
-            return;
+    size: blob.size,
 
-        }
+    date: Date.now()
+
+});
+
+    console.log("URL creada:", url);
+
+    window.dispatchEvent(
+
+        new CustomEvent(
+
+            "file-ready",
+
+            {
+
+                detail: {
+
+                    url,
+
+                    name: fileName
+
+                }
+
+            }
+
+        )
+
+    );
+
+    return;
+}
 
     }
 
@@ -273,6 +388,10 @@ this.channel.onmessage = ({ data }) => {
 this.channel.onclose = () => {
 
     console.log("🔴 DataChannel cerrado");
+
+    this.isOpen = false;
+
+    this.channel = null;
 
 };
 
@@ -345,6 +464,23 @@ setOnProgress(callback: (progress: number) => void) {
     this.onProgressCallback = callback;
 
 }
+setOnSpeed(callback: (speed: string) => void) {
+
+    this.onSpeedCallback = callback;
+
+}
+
+setOnTime(callback: (time: string) => void) {
+
+    this.onTimeCallback = callback;
+
+}
+
+cancelTransfer() {
+
+    this.cancelled = true;
+
+}
 
 setOnReceiveProgress(callback: (progress: number) => void) {
 
@@ -355,6 +491,7 @@ setOnReceiveProgress(callback: (progress: number) => void) {
  async sendFile(file: File) {
 
     if (!this.channel) {
+        this.cancelled = false;
 
         console.log("❌ DataChannel cerrado");
 
@@ -375,38 +512,73 @@ setOnReceiveProgress(callback: (progress: number) => void) {
         size: file.size
 
     }));
+    
+    this.cancelled = false;
+
 
     let offset = 0;
+    const startTime = Date.now();
 
     while (offset < file.size) {
 
-        const slice = file.slice(offset, offset + CHUNK_SIZE);
+    if (this.cancelled) {
 
-        const buffer = await slice.arrayBuffer();
+        console.log("❌ Transferencia cancelada");
 
-        while (this.channel.bufferedAmount > 1024 * 1024) {
+        return;
 
-            await new Promise(resolve => setTimeout(resolve, 10));
+    }
 
-        }
+    const slice = file.slice(
+        offset,
+        offset + CHUNK_SIZE
+        
+    );
 
-        this.channel.send(buffer);
+    const buffer = await slice.arrayBuffer();
 
-        offset += CHUNK_SIZE;
+    while (this.channel.bufferedAmount > 1024 * 1024) {
 
-const progress = Math.min(
+        await new Promise(
+            resolve => setTimeout(resolve, 10)
+        );
 
+    }
+
+    this.channel.send(buffer);
+
+    offset += CHUNK_SIZE;
+    const progress = Math.min(
     Math.floor((offset / file.size) * 100),
-
     100
-
 );
-
-console.log(`📤 ${progress}%`);
 
 this.onProgressCallback?.(progress);
 
-    }
+const elapsed = (Date.now() - startTime) / 1000;
+
+const speed = offset / elapsed;
+
+const speedMb = (
+    speed / 1024 / 1024
+).toFixed(2);
+
+this.onSpeedCallback?.(
+    `${speedMb} MB/s`
+);
+
+const remainingBytes =
+    file.size - offset;
+
+const remainingSeconds =
+    Math.ceil(
+        remainingBytes / speed
+    );
+
+this.onTimeCallback?.(
+    `${remainingSeconds}s`
+);
+}
 
     this.channel.send(JSON.stringify({
 
@@ -417,7 +589,53 @@ this.onProgressCallback?.(progress);
     console.log("✅ Archivo enviado");
 
 }
+setOnClipboard(
+    callback: (text: string) => void
+) {
 
+    this.onClipboardCallback = callback;
+
+}
+
+sendClipboard(text: string) {
+
+    if (
+
+        !this.channel ||
+
+        this.channel.readyState !== "open"
+
+    ) {
+
+        console.log(
+
+            "❌ Canal cerrado"
+
+        );
+
+        return;
+
+    }
+
+    this.channel.send(
+
+        JSON.stringify({
+
+            type: "clipboard",
+
+            text
+
+        })
+
+    );
+
+    console.log(
+
+        "📋 Portapapeles enviado"
+
+    );
+
+}
 
 isReady() {
 
