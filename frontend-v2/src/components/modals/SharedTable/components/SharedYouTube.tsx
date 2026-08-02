@@ -49,10 +49,15 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
     const playerRef = useRef<Player | null>(null);
     const mediaRef = useRef(media);
     const remoteRef = useRef(false);
-    const dragRef = useRef<{ clientX: number; clientY: number; x: number; y: number } | null>(null);
-    const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
+    const cardRef = useRef<HTMLElement>(null);
+    const dragRef = useRef<{ clientX: number; clientY: number; x: number; y: number; nextX: number; nextY: number } | null>(null);
+    const [position, setPosition] = useState({ x: media.x, y: media.y });
     const [isReady, setIsReady] = useState(false);
     mediaRef.current = media;
+
+    useEffect(() => {
+        if (!dragRef.current) setPosition({ x: media.x, y: media.y });
+    }, [media.x, media.y]);
 
     useEffect(() => {
         let active = true;
@@ -103,25 +108,40 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
         return () => window.clearTimeout(timer);
     }, [isReady, media.playing, media.currentTime, media.updatedAt]);
 
-    return <section className="shared-youtube" style={{ left: drag?.x ?? media.x, top: drag?.y ?? media.y }}>
+    return <section ref={cardRef} className="shared-youtube" style={{ left: position.x, top: position.y }}>
         <header
             onPointerDown={event => {
                 if ((event.target as HTMLElement).closest("button,a")) return;
                 event.currentTarget.setPointerCapture(event.pointerId);
-                dragRef.current = { clientX: event.clientX, clientY: event.clientY, x: media.x, y: media.y };
+                dragRef.current = {
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    x: position.x,
+                    y: position.y,
+                    nextX: position.x,
+                    nextY: position.y,
+                };
+                cardRef.current?.classList.add("is-dragging");
             }}
             onPointerMove={event => {
                 const start = dragRef.current;
                 if (!start) return;
-                setDrag({
-                    x: Math.max(0, Math.min(4700, start.x + (event.clientX - start.clientX) / scale)),
-                    y: Math.max(0, Math.min(3300, start.y + (event.clientY - start.clientY) / scale)),
-                });
+                start.nextX = Math.max(0, Math.min(4700, start.x + (event.clientX - start.clientX) / scale));
+                start.nextY = Math.max(0, Math.min(3300, start.y + (event.clientY - start.clientY) / scale));
+                if (cardRef.current) {
+                    cardRef.current.style.translate = `${start.nextX - start.x}px ${start.nextY - start.y}px`;
+                }
             }}
             onPointerUp={() => {
-                if (drag) onMove(drag.x, drag.y);
+                const completed = dragRef.current;
+                if (!completed) return;
+                setPosition({ x: completed.nextX, y: completed.nextY });
+                onMove(completed.nextX, completed.nextY);
+                if (cardRef.current) {
+                    cardRef.current.style.translate = "";
+                    cardRef.current.classList.remove("is-dragging");
+                }
                 dragRef.current = null;
-                setDrag(null);
             }}
         >
             <GripHorizontal size={17}/><span>YouTube compartido</span>
