@@ -288,13 +288,13 @@ setDragPosition({
     }}
     onDoubleClick={() => {
         if (item.type === "folder") onOpenFolder(item.id);
-        else if (item.available) onDownload(item);
         else if (canRelink) onRelink(item);
+        else onDownload(item);
     }}
 >
 
             {selected && <div className="table-item-actions" onPointerDown={event => event.stopPropagation()}>
-                {item.type === "file" && item.available && <button title="Descargar" onClick={event => { event.stopPropagation(); onDownload(item); }}><Download size={14}/></button>}
+                {item.type === "file" && !canRelink && <button title="Descargar" onClick={event => { event.stopPropagation(); onDownload(item); }}><Download size={14}/></button>}
                 {canRelink && <button title="Volver a vincular el archivo" onClick={event => { event.stopPropagation(); onRelink(item); }}><RefreshCw size={14}/></button>}
                 <button title="Renombrar" onClick={event => { event.stopPropagation(); setEditing(true); }}><Pencil size={14}/></button>
                 <button title="Mover a la papelera" onClick={event => { event.stopPropagation(); onDelete(item); }}><Trash2 size={14}/></button>

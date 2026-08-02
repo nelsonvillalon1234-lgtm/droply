@@ -390,6 +390,9 @@ async function restoreOwnedSources(roomItems: TableItem[], requestPermission = f
     setHasSourcesToRestore(needsPermission);
     normalized.forEach(item => {
         if (item.type === "file" && item.ownerId === deviceId) socket.emit("table-item-updated", item);
+        if (item.type === "file" && files.current.has(item.id)) {
+            socket.emit("download-source-added", { itemId: item.id });
+        }
     });
     if (requestPermission && restoredCount) {
         window.dispatchEvent(new CustomEvent("droply-toast", { detail: `${restoredCount} archivo${restoredCount === 1 ? " restaurado" : "s restaurados"}.` }));
@@ -675,6 +678,11 @@ socket.on("cancel-transfer", () => {
 socket.on("table-item-updated", (updated: TableItem) => {
     setItems(current => current.map(item => item.id === updated.id ? updated : item));
 });
+socket.on("table-item-source-available", ({ itemId }: { itemId: string }) => {
+    setItems(current => current.map(item => item.id === itemId
+        ? { ...item, available: true }
+        : item));
+});
 
 socket.on("chat-message", (message: ChatMessage) => {
     setMessages((current) =>
@@ -805,6 +813,8 @@ socket.on("download-unavailable", ({ itemId, reason }: { itemId: string; reason?
         socket.off("table-item-added");
         socket.off("table-item-updated");
 
+        socket.off("table-item-source-available");
+
         socket.off("table-item-moved");
 
         socket.off("cancel-transfer");
@@ -867,6 +877,9 @@ useEffect(() => {
             type: fileEvent.detail.blob.type || "application/octet-stream",
             lastModified: Date.now(),
         }));
+        setItems(current => current.map(item => item.id === completedItemId
+            ? { ...item, available: true }
+            : item));
         socket.emit("download-source-added", { itemId: completedItemId });
 
         setDownloadComplete(true);

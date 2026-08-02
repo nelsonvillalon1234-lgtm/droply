@@ -70,6 +70,7 @@ export default function registerSharedTableEvents(io: Server, socket: Socket) {
         const sources = fileSources.get(key) ?? new Set<string>();
         sources.add(sourceDeviceId);
         fileSources.set(key, sources);
+        io.to(room).emit("table-item-source-available", { itemId });
     });
 
     socket.on("download-source-missing", (payload: unknown) => {
