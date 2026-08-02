@@ -519,6 +519,7 @@ socket.on("download-ice-candidate", async ({ itemId, candidate }: { itemId: stri
 
 socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
     if (downloadingItemRef.current !== itemId) return;
+    PeerManager.reset();
     downloadingItemRef.current = null;
     activeTransferItemRef.current = null;
     setDownloadItemId(null);
@@ -614,6 +615,9 @@ useEffect(() => {
 
         link.remove();
 
+        downloadingItemRef.current = null;
+        PeerManager.reset();
+
         setTimeout(() => {
 
             URL.revokeObjectURL(
@@ -628,6 +632,7 @@ useEffect(() => {
         const fileEvent = event as CustomEvent<{ name?: string }>;
         downloadingItemRef.current = null;
         activeTransferItemRef.current = null;
+        PeerManager.reset();
         setDownloadItemId(null);
         setDownloadProgress(0);
         setDownloadComplete(false);
@@ -638,6 +643,7 @@ useEffect(() => {
         const detail = (event as CustomEvent<{ relayAvailable?: boolean }>).detail;
         downloadingItemRef.current = null;
         activeTransferItemRef.current = null;
+        PeerManager.reset();
         setDownloadItemId(null);
         setDownloadProgress(0);
         setDownloadComplete(false);
