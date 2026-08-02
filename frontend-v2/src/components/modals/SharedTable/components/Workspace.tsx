@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-    Activity, ChevronLeft, FilePlus2, Files, Folder, FolderPlus, LogOut,
-    Map, MessageCircle, Minus, Plus, RotateCcw, Search, Send, Trash2, Undo2, Upload, Users, X
+    Activity, FilePlus2, FileText, Files, Folder, FolderPlus, LogOut,
+    Map, MessageCircle, Minus, Plus, RotateCcw, Search, Send, StickyNote, Trash2, Undo2, Upload, Users, X
 } from "lucide-react";
 import "./../styles/workspace.css";
 import CenterAction from "./CenterAction";
@@ -64,11 +64,12 @@ export default function Workspace(props: Props) {
     const [view, setView] = useState<"files" | "folders" | "shared" | "activity" | "trash">("files");
     const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
 
-    const currentItems = items.filter(item => !item.deleted && (item.parentId ?? null) === currentFolder);
-    const displayedItems = view === "folders" ? currentItems.filter(item => item.type === "folder") : view === "shared" ? currentItems.filter(item => item.ownerId !== deviceId) : currentItems;
+    const canvasItems = items.filter(item => !item.deleted && (item.parentId ?? null) === null);
+    const displayedItems = view === "folders" ? canvasItems.filter(item => item.type === "folder") : view === "shared" ? canvasItems.filter(item => item.ownerId !== deviceId) : canvasItems;
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const results = normalizedQuery ? items.filter(item => !item.deleted && item.name.toLocaleLowerCase().includes(normalizedQuery)) : [];
     const folder = currentFolder ? items.find(item => item.id === currentFolder) : null;
+    const folderItems = currentFolder ? items.filter(item => !item.deleted && item.parentId === currentFolder) : [];
     const minimapViewport = {
         left: Math.max(0, Math.min(MINIMAP_WIDTH, (-camera.x / camera.zoom) * MINIMAP_WIDTH / WORLD_WIDTH)),
         top: Math.max(0, Math.min(MINIMAP_HEIGHT, (-camera.y / camera.zoom) * MINIMAP_HEIGHT / WORLD_HEIGHT)),
@@ -212,6 +213,12 @@ export default function Workspace(props: Props) {
         fileInputRef.current?.click();
     }
 
+    function chooseFolderFile() {
+        if (!folder) return;
+        filePlacementRef.current = { x: 120, y: 120 };
+        fileInputRef.current?.click();
+    }
+
     function confirmCreator() {
         if (!creator) return;
         const value = creatorValue.trim();
@@ -222,8 +229,8 @@ export default function Workspace(props: Props) {
 
     function moveItem(item: TableItemType, x: number, y: number) {
         const bounded = clampWorldPoint({ x, y });
-        const target = currentItems.find(candidate => candidate.type === "folder" && candidate.id !== item.id && Math.hypot(candidate.x - bounded.x, candidate.y - bounded.y) < 145);
-        onMoveItem(item, target ? 120 : bounded.x, target ? 120 : bounded.y, target?.id ?? currentFolder);
+        const target = canvasItems.find(candidate => candidate.type === "folder" && candidate.id !== item.id && Math.hypot(candidate.x - bounded.x, candidate.y - bounded.y) < 145);
+        onMoveItem(item, target ? 120 : bounded.x, target ? 120 : bounded.y, target?.id ?? null);
     }
 
     function moveFromMinimap(clientX: number, clientY: number) {
@@ -263,7 +270,7 @@ export default function Workspace(props: Props) {
                     <button className="workspace-disconnect" onClick={onDisconnect}><LogOut size={17}/>Desconectar</button>
                 </nav>
                 <div className="space-health"><strong>Disponibilidad</strong><span>● {Math.round((devices.length / 4) * 100)}% de la mesa conectada</span></div>
-                <small className="workspace-version">Droply beta · v0.5.5</small>
+                <small className="workspace-version">Droply beta · v0.5.6</small>
             </aside>
 
             <div className="workspace-search">
@@ -273,7 +280,7 @@ export default function Workspace(props: Props) {
             </div>
             {showMenu && <RoomPanel roomCode={roomCode}/>} 
 
-            <div className="canvas-breadcrumb">{folder && <button onClick={() => setCurrentFolder(folder.parentId ?? null)}><ChevronLeft size={16}/>Atrás</button>}<strong>{view==="activity"?"Actividad":view==="trash"?"Papelera":view==="folders"?"Carpetas":view==="shared"?"Compartidos conmigo":folder?.name ?? "Todos los archivos"}</strong>{canUndo&&<button className="undo-button" onClick={onUndo}><Undo2 size={15}/>Deshacer</button>}</div>
+            <div className="canvas-breadcrumb"><strong>{view==="activity"?"Actividad":view==="trash"?"Papelera":view==="folders"?"Carpetas":view==="shared"?"Compartidos conmigo":"Todos los archivos"}</strong>{canUndo&&<button className="undo-button" onClick={onUndo}><Undo2 size={15}/>Deshacer</button>}</div>
             <div ref={viewportRef} className={`workspace-viewport ${panRef.current ? "is-panning" : ""}`}
                 onClick={e => { e.stopPropagation(); if (contextMenu) setContextMenu(null); }}
                 onWheel={e => { if (!e.ctrlKey) setCamera(c => clampCamera({...c, x:c.x-e.deltaX, y:c.y-e.deltaY})); }}
@@ -295,6 +302,15 @@ export default function Workspace(props: Props) {
 
             {view==="activity"&&<aside className="workspace-data-panel"><header><Activity size={18}/><strong>Actividad reciente</strong></header>{activity.length?activity.map(entry=><div className="activity-row" key={entry.id}><span>{entry.text}</span><small>{new Date(entry.createdAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</small></div>):<p>Aún no hay actividad en esta mesa.</p>}</aside>}
             {view==="trash"&&<aside className="workspace-data-panel"><header><Trash2 size={18}/><strong>Papelera</strong></header>{items.filter(item=>item.deleted).length?items.filter(item=>item.deleted).map(item=><div className="trash-row" key={item.id}><div><strong>{item.name}</strong><small>{item.type}</small></div><button onClick={()=>onRestoreItem(item)}><RotateCcw size={15}/>Restaurar</button></div>):<p>La papelera está vacía.</p>}</aside>}
+
+            {folder&&<aside className="workspace-folder-window" onPointerDown={e=>e.stopPropagation()}>
+                <header><div><Folder size={19}/><span><strong>{folder.name}</strong><small>{folderItems.length} elemento{folderItems.length===1?"":"s"}</small></span></div><button onClick={()=>setCurrentFolder(folder.parentId ?? null)} aria-label="Cerrar carpeta"><X size={18}/></button></header>
+                <div className="folder-window-grid">
+                    {folderItems.map(item=>{const Icon=item.type==="folder"?Folder:item.type==="note"?StickyNote:FileText;return <button key={item.id} onDoubleClick={()=>item.type==="folder"?setCurrentFolder(item.id):onDownload(item)} onClick={()=>setSelectedId(item.id)}><Icon size={25}/><strong>{item.name}</strong><small>{item.ownerName}</small></button>})}
+                    <button className="folder-window-add" onClick={chooseFolderFile}><Plus size={24}/><strong>Agregar archivo</strong><small>Desde este dispositivo</small></button>
+                </div>
+                {folderItems.length===0&&<p>Esta carpeta está vacía. Agrega el primer archivo.</p>}
+            </aside>}
 
             <div className="canvas-controls"><button onClick={() => zoomAt(innerWidth/2,innerHeight/2,camera.zoom-.1)}><Minus/></button><span>{Math.round(camera.zoom*100)}%</span><button onClick={() => zoomAt(innerWidth/2,innerHeight/2,camera.zoom+.1)}><Plus/></button><button onClick={() => setCamera({x:220,y:140,zoom:1})}>Centrar</button></div>
             <div className="workspace-minimap" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);moveFromMinimap(e.clientX,e.clientY);}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))moveFromMinimap(e.clientX,e.clientY);}}>
