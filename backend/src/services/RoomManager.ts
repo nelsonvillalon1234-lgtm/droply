@@ -9,6 +9,8 @@ type Room = {
 };
 import { randomInt } from "node:crypto";
 
+const TABLE_RETENTION_MS = 24 * 60 * 60 * 1000;
+
 class RoomManager {
 
     private rooms = new Map<string, Room>();
@@ -57,6 +59,7 @@ class RoomManager {
 
         if (room.locked || room.members.size >= room.maxMembers) return false;
         room.members.add(guestSocketId);
+        if (room.purpose === "table") room.expiresAt = null;
         if (room.purpose === "transfer") room.locked = true;
 
         return true;
@@ -71,11 +74,27 @@ class RoomManager {
         return room;
     }
 
+    pruneExpiredRooms(now = Date.now()) {
+        const expired: string[] = [];
+        for (const [code, room] of this.rooms) {
+            if (room.expiresAt && now >= room.expiresAt) {
+                this.rooms.delete(code);
+                expired.push(code);
+            }
+        }
+        return expired;
+    }
+
     leaveRoom(code: string, socketId: string) {
         const room = this.rooms.get(code);
         if (!room) return;
         room.members.delete(socketId);
-        if (room.members.size === 0) this.rooms.delete(code);
+        if (room.members.size !== 0) return;
+        if (room.purpose === "table") {
+            room.expiresAt = Date.now() + TABLE_RETENTION_MS;
+            return;
+        }
+        this.rooms.delete(code);
     }
 
 }

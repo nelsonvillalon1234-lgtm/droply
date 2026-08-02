@@ -65,6 +65,8 @@
 .qr-expiry.is-expired { color:#a63b3b; background:#fff0f0; }
 .qr-section--connected .qr-wrapper { opacity:.22; transform:scale(.92); }
 .qr-section--connected .qr-nearby-icon { color:#129451; background:#e8faef; animation:nearby-confirm .45s cubic-bezier(.2,.9,.25,1.3); }
+.qr-share-link { min-height:42px; margin-top:11px; padding:0 16px; display:flex; align-items:center; justify-content:center; gap:8px; color:#514cf0; background:#f0efff; border:1px solid #dfddff; border-radius:12px; font-size:13px; font-weight:700; transition:.2s ease; }
+.qr-share-link:hover { background:#e8e6ff; transform:translateY(-1px); }
 @keyframes nearby-pulse { 50%{transform:scale(1.06);box-shadow:0 0 0 10px rgba(94,91,255,.08)} }
 @keyframes nearby-confirm { from{transform:scale(.65)} to{transform:scale(1)} }
 @media(prefers-reduced-motion:reduce){.qr-nearby-icon{animation:none}}

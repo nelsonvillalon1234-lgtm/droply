@@ -23,6 +23,13 @@ type TableItem = {
 
 const roomDevices = new Map<string, Map<string, RoomDevice>>();
 const roomItems = new Map<string, Map<string, TableItem>>();
+const cleanupTimer = setInterval(() => {
+    for (const code of RoomManager.pruneExpiredRooms()) {
+        roomDevices.delete(code);
+        roomItems.delete(code);
+    }
+}, 10 * 60_000);
+cleanupTimer.unref();
 const allowMutation = createRateLimiter(180, 60_000);
 const allowChat = createRateLimiter(40, 60_000);
 
@@ -98,6 +105,10 @@ export default function registerRoomEvents(socket: Socket) {
         if (rawDevice && !device) return socket.emit("security-error", "Dispositivo invalido");
 
         const requestedRoom = RoomManager.getRoom(code);
+        if (!requestedRoom) {
+            roomDevices.delete(code);
+            roomItems.delete(code);
+        }
         let restoredExistingDevice = false;
         if (requestedRoom?.purpose === "table" && device) {
             const members = roomDevices.get(code);
@@ -109,6 +120,7 @@ export default function registerRoomEvents(socket: Socket) {
                 requestedRoom.members.delete(previousSocketId);
                 requestedRoom.members.add(socket.id);
                 if (requestedRoom.host === previousSocketId) requestedRoom.host = socket.id;
+                requestedRoom.expiresAt = null;
                 socket.nsp.sockets.get(previousSocketId)?.leave(code);
                 restoredExistingDevice = true;
             }
