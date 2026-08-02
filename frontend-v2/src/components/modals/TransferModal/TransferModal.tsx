@@ -48,21 +48,31 @@ export default function TransferModal({
     const [devices, setDevices] = useState<TransferDevice[]>([]);
     const [joinError, setJoinError] = useState("");
     const [receivedFiles, setReceivedFiles] = useState<Array<{ url: string; name: string }>>([]);
+    const [queuedFiles, setQueuedFiles] = useState<File[]>(files);
 
     const roomRef = useRef("");
     const sendingRef = useRef(false);
+    const queuedFilesRef = useRef<File[]>(files);
+    const sentCountRef = useRef(0);
+    const addFilesInputRef = useRef<HTMLInputElement>(null);
 
     async function sendSelectedFiles() {
-        if (mode !== "sender" || files.length === 0 || sendingRef.current || !PeerManager.isReady()) return;
+        if (mode !== "sender" || queuedFilesRef.current.length === 0 || sendingRef.current || !PeerManager.isReady()) return;
         sendingRef.current = true;
         try {
-            for (let index = 0; index < files.length; index += 1) {
-                setProgress(Math.round((index / files.length) * 100));
-                await PeerManager.sendFile(files[index]);
+            while (sentCountRef.current < queuedFilesRef.current.length) {
+                const index = sentCountRef.current;
+                const currentFiles = queuedFilesRef.current;
+                setProgress(Math.round((index / currentFiles.length) * 100));
+                await PeerManager.sendFile(currentFiles[index]);
+                sentCountRef.current += 1;
             }
             setProgress(100);
         } finally {
             sendingRef.current = false;
+            if (sentCountRef.current < queuedFilesRef.current.length && PeerManager.isReady()) {
+                queueMicrotask(() => void sendSelectedFiles());
+            }
         }
     }
 
@@ -77,13 +87,16 @@ export default function TransferModal({
         setDevices([]);
         setReceivedFiles([]);
         sendingRef.current = false;
+        queuedFilesRef.current = files;
+        setQueuedFiles(files);
+        sentCountRef.current = 0;
 
          //HACE QUE EL ARVHIVO SE ENVIE DE MANERA AUTOMATICA
         PeerManager.setOnReady(async () => {
 
     if (mode !== "sender") return;
 
-    if (files.length === 0) return;
+    if (queuedFilesRef.current.length === 0) return;
 
     console.log("🚀 DataChannel listo");
 
@@ -433,12 +446,25 @@ PeerManager.setOnReceiveProgress((value) => {
                             <>
 
                                 <FileCard
-                                    file={files[0]}
+                                    file={queuedFiles[0]}
                                 />
-                                {files.length > 1 && <div className="transfer-file-list">
-                                    <strong>{files.length} archivos preparados</strong>
-                                    <span>{files.slice(1, 4).map(item => item.name).join(" Â· ")}{files.length > 4 ? ` Â· +${files.length - 4}` : ""}</span>
+                                {queuedFiles.length > 1 && <div className="transfer-file-list">
+                                    <strong>{queuedFiles.length} archivos preparados</strong>
+                                    <span>{queuedFiles.slice(1, 4).map(item => item.name).join(" Â· ")}{queuedFiles.length > 4 ? ` Â· +${queuedFiles.length - 4}` : ""}</span>
                                 </div>}
+                                <input ref={addFilesInputRef} className="transfer-add-input" type="file" multiple onChange={(event) => {
+                                    const incoming = Array.from(event.target.files ?? []);
+                                    if (incoming.length === 0) return;
+                                    const known = new Set(queuedFilesRef.current.map(item => `${item.name}:${item.size}:${item.lastModified}`));
+                                    const next = [...queuedFilesRef.current, ...incoming.filter(item => !known.has(`${item.name}:${item.size}:${item.lastModified}`))];
+                                    queuedFilesRef.current = next;
+                                    setQueuedFiles(next);
+                                    event.currentTarget.value = "";
+                                    if (PeerManager.isReady()) void sendSelectedFiles();
+                                }} />
+                                <button className="transfer-add-files" type="button" onClick={() => addFilesInputRef.current?.click()}>
+                                    <span>+</span><div><strong>Agregar archivos</strong><small>Puedes elegir varios a la vez</small></div>
+                                </button>
 
                                 <QRSection
                                     roomCode={roomCode}

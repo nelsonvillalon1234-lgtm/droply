@@ -147,6 +147,12 @@
 .transfer-file-list { margin:-8px 0 16px; padding:12px 14px; display:flex; flex-direction:column; gap:4px; color:#596273; background:#f7f7ff; border:1px solid #e7e6ff; border-radius:14px; }
 .transfer-file-list strong { color:#20283a; font-size:13px; }
 .transfer-file-list span { overflow:hidden; color:#7e8798; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.transfer-add-input { display:none; }
+.transfer-add-files { width:100%; min-height:58px; margin:-6px 0 18px; padding:10px 14px; display:flex; align-items:center; gap:12px; color:#4f49e9; background:#fff; border:1px dashed #bdbaf8; border-radius:15px; text-align:left; transition:.2s ease; }
+.transfer-add-files:hover { background:#f7f7ff; border-color:#5b56f6; }
+.transfer-add-files>span { width:34px; height:34px; display:grid; place-items:center; flex:0 0 auto; color:#fff; background:#5b56f6; border-radius:10px; font-size:22px; }
+.transfer-add-files>div { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.transfer-add-files strong { font-size:13px; }.transfer-add-files small { color:#858da0; font-size:11px; }
 .receiver-section { padding:24px; text-align:center; background:linear-gradient(145deg,#fafaff,#f5f6ff); border:1px solid #e5e7ef; border-radius:20px; }
 .receiver-section h3 { margin:0 0 7px; color:#182033; font-size:21px; }
 .receiver-section > p { margin:0 0 20px; color:#7d8698; font-size:13px; }
