@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem } from "./types";
+import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem, TransferPhase } from "./types";
 
 
 
@@ -98,6 +98,7 @@ const [
     downloadComplete,
     setDownloadComplete
 ] = useState(false);
+const [downloadPhase, setDownloadPhase] = useState<TransferPhase>("idle");
 
 const downloadingItemRef =
     useRef<string | null>(null);
@@ -407,6 +408,7 @@ function handleCancelDownload() {
     setDownloadProgress(0);
 
     setDownloadComplete(false);
+    setDownloadPhase("idle");
 
 }
 
@@ -434,6 +436,7 @@ function handleDownload(item: TableItem) {
     setDownloadProgress(0);
 
     setDownloadComplete(false);
+    setDownloadPhase("searching");
 
     console.log("📥 Solicitando descarga");
 
@@ -479,9 +482,16 @@ function handleDownload(item: TableItem) {
         if (!socket.connected) socket.connect();
         else void restoreRoom();
     };
+    const handleNetworkReturn = () => {
+        if (!roomRef.current) return;
+        reconnectPendingRef.current = true;
+        if (!socket.connected) socket.connect();
+        else void restoreRoom();
+    };
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", handleNetworkReturn);
 
     socket.on("room-created", (code: string) => {
 
@@ -668,6 +678,7 @@ socket.on("download-offer", async ({ itemId, offer, sourceSocketId }: { itemId: 
     if (downloadingItemRef.current !== itemId) return;
 
     console.log("📨 OFFER recibido");
+    setDownloadPhase("connecting");
 
     PeerManager.reset();
     activeTransferItemRef.current = itemId;
@@ -712,6 +723,7 @@ socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
     setDownloadItemId(null);
     setDownloadProgress(0);
     setDownloadComplete(false);
+    setDownloadPhase("idle");
     window.dispatchEvent(new CustomEvent("droply-toast", { detail: "El dispositivo que tiene este archivo esta desconectado." }));
 });
 
@@ -724,6 +736,7 @@ socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
         socket.off("connect", handleConnect);
         socket.off("disconnect", handleDisconnect);
         document.removeEventListener("visibilitychange", handleVisibilityChange);
+        window.removeEventListener("online", handleNetworkReturn);
 
         socket.off("joined-room");
 
@@ -768,6 +781,7 @@ useEffect(() => {
                 return;
 
             setDownloadProgress(progress);
+            setDownloadPhase(progress > 0 ? "receiving" : "connecting");
 
         }
     );
@@ -786,12 +800,14 @@ useEffect(() => {
             return;
 
         setDownloadProgress(100);
-
-        setDownloadComplete(true);
+        setDownloadPhase("verifying");
 
         activeTransferItemRef.current = null;
 
         await saveReceivedFile(fileEvent.detail.url, fileEvent.detail.name);
+
+        setDownloadComplete(true);
+        setDownloadPhase("complete");
 
         downloadingItemRef.current = null;
         PeerManager.reset();
@@ -814,6 +830,7 @@ useEffect(() => {
         setDownloadItemId(null);
         setDownloadProgress(0);
         setDownloadComplete(false);
+        setDownloadPhase("idle");
         recordActivity(`La descarga de ${fileEvent.detail?.name || "un archivo"} fue rechazada por integridad`);
     }
 
@@ -825,6 +842,7 @@ useEffect(() => {
         setDownloadItemId(null);
         setDownloadProgress(0);
         setDownloadComplete(false);
+        setDownloadPhase("idle");
         window.dispatchEvent(new CustomEvent("droply-toast", {
             detail: detail?.relayAvailable
                 ? "No pudimos establecer la conexión directa. Intenta nuevamente."
@@ -890,6 +908,7 @@ useEffect(() => {
     downloadItemId={downloadItemId}
     downloadProgress={downloadProgress}
     downloadComplete={downloadComplete}
+    downloadPhase={downloadPhase}
     onCreateRoom={handleCreateRoom}
     onJoinRoom={handleJoinRoom}
     onAddFile={addTableItem}

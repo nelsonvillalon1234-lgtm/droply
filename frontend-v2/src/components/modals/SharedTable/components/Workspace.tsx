@@ -10,13 +10,13 @@ import RoomPanel from "./RoomPanel";
 import Device from "./Device";
 import TableItem from "./TableItem";
 import SharedYouTube from "./SharedYouTube";
-import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem as TableItemType } from "../types";
+import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem as TableItemType, TransferPhase } from "../types";
 import deviceId from "../../../../services/device";
 
 type Props = {
     hasRoom: boolean; creatingRoom: boolean; roomCode: string; devices: DeviceType[];
     items: TableItemType[]; showMenu: boolean; downloadItemId: string | null;
-    downloadProgress: number; downloadComplete: boolean; messages: ChatMessage[];
+    downloadProgress: number; downloadComplete: boolean; downloadPhase: TransferPhase; messages: ChatMessage[];
     onCancelDownload: () => void;
     onMoveItem: (item: TableItemType, x: number, y: number, parentId?: string | null) => void;
     onCreateRoom: () => void; onJoinRoom: (code: string) => void; onAddFile: (file: File, x: number, y: number, parentId?: string | null) => void;
@@ -52,7 +52,7 @@ const MINIMAP_HEIGHT = 132;
 
 export default function Workspace(props: Props) {
     const { hasRoom, creatingRoom, roomCode, showMenu, devices, items, downloadItemId,
-        downloadProgress, downloadComplete, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload,
+        downloadProgress, downloadComplete, downloadPhase, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload,
         onMoveItem, onCancelDownload, onSendMessage, onCreateWorkspaceItem,
         activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect, recentRooms,
         sharedMedia, onCreateMedia, onMediaControl, onMediaMove, onMediaRemove,
@@ -363,6 +363,7 @@ export default function Workspace(props: Props) {
                         onOpenFolder={id => setCurrentFolder(id)} onCancelDownload={onCancelDownload}
                         selected={selectedId===item.id} onSelect={entry=>setSelectedId(entry.id)} onDelete={onDeleteItem} onRename={onRenameItem}
                         downloadProgress={downloadItemId===item.id ? downloadProgress : undefined}
+                        transferPhase={downloadItemId===item.id ? downloadPhase : "idle"}
                         downloadComplete={downloadItemId===item.id && downloadComplete}/>}) }
                     {sharedMedia&&!theater&&<SharedYouTube media={sharedMedia} scale={camera.zoom} onControl={onMediaControl} onMove={onMediaMove} onRemove={onMediaRemove} onToggleTheater={enterTheater}/>}
                 </div>
@@ -374,7 +375,7 @@ export default function Workspace(props: Props) {
             {folder&&<aside className="workspace-folder-window" onPointerDown={e=>e.stopPropagation()}>
                 <header><div><Folder size={19}/><span><strong>{folder.name}</strong><small>{folderItems.length} elemento{folderItems.length===1?"":"s"}</small></span></div><button onClick={()=>setCurrentFolder(folder.parentId ?? null)} aria-label="Cerrar carpeta"><X size={18}/></button></header>
                 <div className="folder-window-grid">
-                    {folderItems.map(item=>{const Icon=item.type==="folder"?Folder:item.type==="note"?StickyNote:FileText;return <div className="folder-window-item" key={item.id}><button onDoubleClick={()=>item.type==="folder"?setCurrentFolder(item.id):onDownload(item)} onClick={()=>setSelectedId(item.id)}><Icon size={25}/><strong>{item.name}</strong><small>{item.ownerName}</small></button>{item.type==="file"&&<button className="folder-item-download" onClick={()=>onDownload(item)}>Descargar</button>}<button className="folder-item-eject" onClick={()=>onMoveItem(item,Math.min(ITEM_MAX_X,folder.x+190),Math.min(ITEM_MAX_Y,folder.y+30),null)}>Sacar a la mesa</button></div>})}
+                    {folderItems.map((item,index)=>{const Icon=item.type==="folder"?Folder:item.type==="note"?StickyNote:FileText;return <div className="folder-window-item" style={{animationDelay:`${Math.min(index,8)*35}ms`}} key={item.id}><button onDoubleClick={()=>item.type==="folder"?setCurrentFolder(item.id):onDownload(item)} onClick={()=>setSelectedId(item.id)}><Icon size={25}/><strong>{item.name}</strong><small>{item.ownerName}</small></button>{item.type==="file"&&<button className="folder-item-download" onClick={()=>onDownload(item)}>Descargar</button>}<button className="folder-item-eject" onClick={()=>onMoveItem(item,Math.min(ITEM_MAX_X,folder.x+190),Math.min(ITEM_MAX_Y,folder.y+30),null)}>Sacar a la mesa</button></div>})}
                     <button className="folder-window-add" onClick={chooseFolderFile}><Plus size={24}/><strong>Agregar archivo</strong><small>Desde este dispositivo</small></button>
                 </div>
                 {folderItems.length===0&&<p>Esta carpeta está vacía. Agrega el primer archivo.</p>}

@@ -16,6 +16,9 @@ Estados: `✅ terminado` · `🟡 en progreso` · `⬜ pendiente` · `🧪 exper
 - ✅ Carpetas y notas; archivos arrastrables dentro de carpetas.
 - ✅ Nombre del dispositivo que agregó cada elemento.
 - ✅ Animación al arrastrar un archivo sobre “Enviar”.
+- ✅ Animaciones coherentes para archivos, carpetas, mensajes, integrantes y paneles.
+- ✅ Estados visibles de transferencia: buscando, conectando, recibiendo, verificando y listo.
+- ✅ Reconexión de la mesa al volver a la aplicación o recuperar internet.
 - ✅ Configuración TURN fuera del paquete web y validación básica del backend.
 
 ## Próxima entrega: conexión cercana
@@ -54,8 +57,8 @@ Estados: `✅ terminado` · `🟡 en progreso` · `⬜ pendiente` · `🧪 exper
 - ⬜ Comentarios ligados a un archivo, no otro chat general.
 - ⬜ Estados simples: pendiente, para revisión, aprobado y requiere cambios.
 - ⬜ Solicitudes de archivos mediante enlace para personas sin cuenta.
-- ⬜ Vista de papelera y recuperación.
-- ⬜ Mini mapa del lienzo y botón “mostrar todo”.
+- ✅ Vista de papelera y recuperación.
+- ✅ Mini mapa navegable del lienzo y botón para centrar.
 - ⬜ Selección múltiple, alineación y agrupación visual.
 - ⬜ Cursores colaborativos; activables para no saturar la interfaz.
 

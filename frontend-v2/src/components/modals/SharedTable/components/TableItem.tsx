@@ -17,7 +17,7 @@ import {
     X
 } from "lucide-react";
 
-import type { TableItem as TableItemType } from "../types";
+import type { TableItem as TableItemType, TransferPhase } from "../types";
 
 
 
@@ -31,6 +31,7 @@ type Props = {
     downloadProgress?: number;
 
     downloadComplete?: boolean;
+    transferPhase?: TransferPhase;
 
     onMove: (
     item: TableItemType,
@@ -61,6 +62,7 @@ export default function TableItem({
     downloadProgress,
 
     downloadComplete = false,
+    transferPhase = "idle",
     scale = 1,
     onOpenFolder,
     selected = false,
@@ -97,6 +99,15 @@ const movedRef = useRef(false);
     const downloading =
         downloadProgress !== undefined &&
         !downloadComplete;
+
+    const transferLabel: Record<TransferPhase, string> = {
+        idle: "",
+        searching: "Buscando una copia…",
+        connecting: "Conectando directamente…",
+        receiving: "Recibiendo de forma segura…",
+        verifying: "Verificando integridad…",
+        complete: "Archivo verificado",
+    };
 
     const radius = 18;
 
@@ -136,7 +147,7 @@ const movedRef = useRef(false);
             ? "table-item--dragging"
             : ""
     } ${selected ? "table-item--selected" : ""
-    }`}
+    } table-item--phase-${transferPhase}`}
     style={{
     left: `${
         dragPosition?.x ??
@@ -377,7 +388,7 @@ setDragPosition({
 
                 <small className="table-item-state">
 
-                    Descargando…
+                    {transferLabel[transferPhase] || "Preparando descarga…"}
 
                 </small>
 
@@ -387,7 +398,7 @@ setDragPosition({
 
                 <small className="table-item-state complete">
 
-                    Descargado
+                    {transferLabel.complete}
 
                 </small>
 

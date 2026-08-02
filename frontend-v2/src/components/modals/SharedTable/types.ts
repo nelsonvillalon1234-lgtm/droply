@@ -21,6 +21,7 @@ export type TableItem = {
 };
 
 export type ActivityItem = { id: string; text: string; createdAt: number };
+export type TransferPhase = "idle" | "searching" | "connecting" | "receiving" | "verifying" | "complete";
 
 export type SharedMedia = {
     id: string;
