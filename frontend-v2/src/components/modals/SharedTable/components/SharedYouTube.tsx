@@ -60,6 +60,33 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
     }, [media.x, media.y]);
 
     useEffect(() => {
+        const card = cardRef.current;
+        const releaseZoom = () => card?.classList.remove("is-canvas-zooming");
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Control" || event.ctrlKey) card?.classList.add("is-canvas-zooming");
+        };
+        const handleKeyUp = (event: KeyboardEvent) => {
+            if (event.key === "Control" || !event.ctrlKey) releaseZoom();
+        };
+        const recoverFocus = () => {
+            const active = document.activeElement;
+            if (active instanceof HTMLIFrameElement && card?.contains(active)) {
+                window.setTimeout(() => card.focus({ preventScroll: true }), 0);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown, true);
+        window.addEventListener("keyup", handleKeyUp, true);
+        window.addEventListener("blur", recoverFocus);
+        window.addEventListener("pointerup", releaseZoom);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown, true);
+            window.removeEventListener("keyup", handleKeyUp, true);
+            window.removeEventListener("blur", recoverFocus);
+            window.removeEventListener("pointerup", releaseZoom);
+        };
+    }, []);
+
+    useEffect(() => {
         let active = true;
         setIsReady(false);
         void loadApi().then(() => {
@@ -120,7 +147,7 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
         dragRef.current = null;
     }
 
-    return <section ref={cardRef} className="shared-youtube" style={{ left: position.x, top: position.y }}>
+    return <section ref={cardRef} tabIndex={-1} className="shared-youtube" style={{ left: position.x, top: position.y }}>
         <header
             onPointerDown={event => {
                 event.stopPropagation();
