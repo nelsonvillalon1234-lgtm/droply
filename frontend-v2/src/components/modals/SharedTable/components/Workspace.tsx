@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-    Activity, ChevronLeft, FilePlus2, Files, Folder, FolderPlus,
-    MessageCircle, Minus, Plus, RotateCcw, Search, Send, Trash2, Undo2, Users, X
+    Activity, ChevronLeft, FilePlus2, Files, Folder, FolderPlus, LogOut,
+    MessageCircle, Minus, Plus, RotateCcw, Search, Send, Trash2, Undo2, Upload, Users, X
 } from "lucide-react";
 import "./../styles/workspace.css";
 import CenterAction from "./CenterAction";
@@ -24,6 +24,7 @@ type Props = {
     onRenameItem: (item: TableItemType, name: string) => void;
     onDeleteItem: (item: TableItemType) => void;
     onRestoreItem: (item: TableItemType) => void;
+    onDisconnect: () => void;
 };
 
 type Camera = { x: number; y: number; zoom: number };
@@ -34,10 +35,12 @@ export default function Workspace(props: Props) {
     const { hasRoom, creatingRoom, roomCode, showMenu, devices, items, downloadItemId,
         downloadProgress, downloadComplete, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload,
         onMoveItem, onCancelDownload, onSendMessage, onCreateWorkspaceItem,
-        activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem } = props;
+        activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect } = props;
     const viewportRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const panRef = useRef<{ x: number; y: number; cameraX: number; cameraY: number } | null>(null);
     const pinchRef = useRef<{ distance: number; zoom: number; worldX: number; worldY: number } | null>(null);
+    const longPressRef = useRef<{ timer: number; startX: number; startY: number } | null>(null);
     const [camera, setCamera] = useState<Camera>({ x: 220, y: 140, zoom: 1 });
     const [query, setQuery] = useState("");
     const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
@@ -100,6 +103,10 @@ export default function Workspace(props: Props) {
         const handleTouchStart = (event: TouchEvent) => {
             if (event.touches.length !== 2) return;
             event.preventDefault();
+            if (longPressRef.current) {
+                clearTimeout(longPressRef.current.timer);
+                longPressRef.current = null;
+            }
             panRef.current = null;
             const rect = viewport.getBoundingClientRect();
             const point = midpoint(event.touches);
@@ -204,6 +211,7 @@ export default function Workspace(props: Props) {
                     <button className={view==="shared"?"is-active":""} onClick={()=>setView("shared")}><Users size={17}/>Compartidos</button>
                     <button className={view==="activity"?"is-active":""} onClick={()=>setView("activity")}><Activity size={17}/>Actividad</button>
                     <button className={view==="trash"?"is-active":""} onClick={()=>setView("trash")}><Trash2 size={17}/>Papelera</button>
+                    <button className="workspace-disconnect" onClick={onDisconnect}><LogOut size={17}/>Desconectar</button>
                 </nav>
                 <div className="space-health"><strong>Disponibilidad</strong><span>● {Math.round((devices.length / 4) * 100)}% de la mesa conectada</span></div>
                 <small className="workspace-version">Droply beta · v0.4.0</small>
@@ -219,9 +227,10 @@ export default function Workspace(props: Props) {
             <div className="canvas-breadcrumb">{folder && <button onClick={() => setCurrentFolder(folder.parentId ?? null)}><ChevronLeft size={16}/>Atrás</button>}<strong>{view==="activity"?"Actividad":view==="trash"?"Papelera":view==="folders"?"Carpetas":view==="shared"?"Compartidos conmigo":folder?.name ?? "Todos los archivos"}</strong>{canUndo&&<button className="undo-button" onClick={onUndo}><Undo2 size={15}/>Deshacer</button>}</div>
             <div ref={viewportRef} className={`workspace-viewport ${panRef.current ? "is-panning" : ""}`}
                 onWheel={e => { if (!e.ctrlKey) setCamera(c => clampCamera({...c, x:c.x-e.deltaX, y:c.y-e.deltaY})); }}
-                onPointerDown={e => { const target=e.target as HTMLElement; if (e.button === 1 || !target.closest(".table-item, button, input, textarea")) { e.currentTarget.setPointerCapture(e.pointerId); panRef.current = { x:e.clientX, y:e.clientY, cameraX:camera.x, cameraY:camera.y }; } }}
-                onPointerMove={e => { const p=panRef.current; if(p) setCamera(c=>clampCamera({...c,x:p.cameraX+e.clientX-p.x,y:p.cameraY+e.clientY-p.y})); }}
-                onPointerUp={() => { panRef.current=null; }}
+                onPointerDown={e => { const target=e.target as HTMLElement; if (e.button === 1 || !target.closest(".table-item, button, input, textarea")) { e.currentTarget.setPointerCapture(e.pointerId); panRef.current = { x:e.clientX, y:e.clientY, cameraX:camera.x, cameraY:camera.y }; if(e.pointerType==="touch"){const p=screenToWorld(e.clientX,e.clientY);const clientX=e.clientX,clientY=e.clientY;longPressRef.current={startX:clientX,startY:clientY,timer:window.setTimeout(()=>{setContextMenu({clientX,clientY,...p});panRef.current=null;longPressRef.current=null;},600)};} } }}
+                onPointerMove={e => { const hold=longPressRef.current;if(hold&&Math.hypot(e.clientX-hold.startX,e.clientY-hold.startY)>8){clearTimeout(hold.timer);longPressRef.current=null;} const p=panRef.current; if(p) setCamera(c=>clampCamera({...c,x:p.cameraX+e.clientX-p.x,y:p.cameraY+e.clientY-p.y})); }}
+                onPointerUp={() => { if(longPressRef.current){clearTimeout(longPressRef.current.timer);longPressRef.current=null;} panRef.current=null; }}
+                onPointerCancel={() => { if(longPressRef.current){clearTimeout(longPressRef.current.timer);longPressRef.current=null;} panRef.current=null; }}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); const file=e.dataTransfer.files[0]; if(file){ const p=screenToWorld(e.clientX,e.clientY); onAddFile(file,p.x,p.y,currentFolder); } }}
                 onContextMenu={e => { e.preventDefault(); const p=screenToWorld(e.clientX,e.clientY); setContextMenu({clientX:e.clientX,clientY:e.clientY,...p}); }}>
@@ -238,7 +247,8 @@ export default function Workspace(props: Props) {
             {view==="trash"&&<aside className="workspace-data-panel"><header><Trash2 size={18}/><strong>Papelera</strong></header>{items.filter(item=>item.deleted).length?items.filter(item=>item.deleted).map(item=><div className="trash-row" key={item.id}><div><strong>{item.name}</strong><small>{item.type}</small></div><button onClick={()=>onRestoreItem(item)}><RotateCcw size={15}/>Restaurar</button></div>):<p>La papelera está vacía.</p>}</aside>}
 
             <div className="canvas-controls"><button onClick={() => zoomAt(innerWidth/2,innerHeight/2,camera.zoom-.1)}><Minus/></button><span>{Math.round(camera.zoom*100)}%</span><button onClick={() => zoomAt(innerWidth/2,innerHeight/2,camera.zoom+.1)}><Plus/></button><button onClick={() => setCamera({x:220,y:140,zoom:1})}>Centrar</button></div>
-            {contextMenu && <div className="workspace-context-menu" style={{left:contextMenu.clientX,top:contextMenu.clientY}} onClick={e=>e.stopPropagation()}><button onClick={()=>openCreator("folder")}><FolderPlus size={18}/>Nueva carpeta</button><button onClick={()=>openCreator("note")}><FilePlus2 size={18}/>Nueva nota de texto</button></div>}
+            <input ref={fileInputRef} className="workspace-file-input" type="file" onChange={event=>{const file=event.target.files?.[0];if(file&&contextMenu)onAddFile(file,contextMenu.x,contextMenu.y,currentFolder);event.currentTarget.value="";setContextMenu(null);}} />
+            {contextMenu && <div className="workspace-context-menu" style={{left:contextMenu.clientX,top:contextMenu.clientY}} onClick={e=>e.stopPropagation()}><button onClick={()=>fileInputRef.current?.click()}><Upload size={18}/>Agregar archivo</button><button onClick={()=>openCreator("folder")}><FolderPlus size={18}/>Nueva carpeta</button><button onClick={()=>openCreator("note")}><FilePlus2 size={18}/>Nueva nota de texto</button></div>}
             {creator && <form className="workspace-creator" style={{left:creator.clientX,top:creator.clientY}} onSubmit={e=>{e.preventDefault();confirmCreator();}} onClick={e=>e.stopPropagation()}><label>{creator.type==="folder"?"Nombre de la carpeta":"Escribe tu nota"}</label>{creator.type==="folder"?<input autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)} onFocus={e=>e.currentTarget.select()}/>:<textarea autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)}/>}<div><button type="button" onClick={()=>setCreator(null)}>Cancelar</button><button type="submit">Crear</button></div></form>}
 
             <div className="workspace-chat">{chatOpen ? <div className="chat-panel"><header><strong>Chat de la mesa</strong><button onClick={()=>setChatOpen(false)}><X size={17}/></button></header><div className="chat-messages">{messages.length===0&&<p>Coordina aquí sin salir de la mesa.</p>}{messages.map(item=><div className={`chat-message ${item.senderId===deviceId?"is-own":""}`} key={item.id}><strong>{item.senderName}</strong><span>{item.text}</span></div>)}</div><div className="chat-compose"><input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")submitMessage();}} placeholder="Escribe un mensaje"/><button onClick={submitMessage}><Send size={17}/></button></div></div> : <button className="chat-toggle" onClick={()=>setChatOpen(true)}><MessageCircle size={22}/>{messages.length>0&&<span>{messages.length}</span>}</button>}</div>

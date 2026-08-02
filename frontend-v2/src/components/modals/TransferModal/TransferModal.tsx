@@ -16,7 +16,7 @@ type Props = {
     isOpen: boolean;
     mode: "sender" | "receiver";
     room: string;
-    file: File | null;
+    files: File[];
     onClose: () => void;
 };
 
@@ -32,7 +32,7 @@ export default function TransferModal({
     isOpen,
     mode,
     room,
-    file,
+    files,
     onClose,
 }: Props) {
 
@@ -47,8 +47,24 @@ export default function TransferModal({
     const [expiresAt, setExpiresAt] = useState<number | null>(null);
     const [devices, setDevices] = useState<TransferDevice[]>([]);
     const [joinError, setJoinError] = useState("");
+    const [receivedFiles, setReceivedFiles] = useState<Array<{ url: string; name: string }>>([]);
 
     const roomRef = useRef("");
+    const sendingRef = useRef(false);
+
+    async function sendSelectedFiles() {
+        if (mode !== "sender" || files.length === 0 || sendingRef.current || !PeerManager.isReady()) return;
+        sendingRef.current = true;
+        try {
+            for (let index = 0; index < files.length; index += 1) {
+                setProgress(Math.round((index / files.length) * 100));
+                await PeerManager.sendFile(files[index]);
+            }
+            setProgress(100);
+        } finally {
+            sendingRef.current = false;
+        }
+    }
 
     useEffect(() => {
 
@@ -59,17 +75,19 @@ export default function TransferModal({
         setIntegrityError("");
         setJoinError("");
         setDevices([]);
+        setReceivedFiles([]);
+        sendingRef.current = false;
 
          //HACE QUE EL ARVHIVO SE ENVIE DE MANERA AUTOMATICA
         PeerManager.setOnReady(async () => {
 
     if (mode !== "sender") return;
 
-    if (!file) return;
+    if (files.length === 0) return;
 
     console.log("🚀 DataChannel listo");
 
-    await PeerManager.sendFile(file);
+    await sendSelectedFiles();
 
 });
 
@@ -327,6 +345,7 @@ PeerManager.setOnReceiveProgress((value) => {
         setDownloadUrl(customEvent.detail.url);
 
         setDownloadName(customEvent.detail.name);
+        setReceivedFiles((current) => [...current, customEvent.detail]);
 
         setIntegrityError("");
 
@@ -359,7 +378,7 @@ PeerManager.setOnReceiveProgress((value) => {
 
     async function handleSendFile() {
 
-        if (!file) return;
+        if (files.length === 0) return;
 
         if (!PeerManager.isReady()) {
 
@@ -373,7 +392,7 @@ PeerManager.setOnReceiveProgress((value) => {
 
         console.log("🚀 Enviando archivo...");
 
-        await PeerManager.sendFile(file);
+        await sendSelectedFiles();
 
     }
 
@@ -414,8 +433,12 @@ PeerManager.setOnReceiveProgress((value) => {
                             <>
 
                                 <FileCard
-                                    file={file}
+                                    file={files[0]}
                                 />
+                                {files.length > 1 && <div className="transfer-file-list">
+                                    <strong>{files.length} archivos preparados</strong>
+                                    <span>{files.slice(1, 4).map(item => item.name).join(" Â· ")}{files.length > 4 ? ` Â· +${files.length - 4}` : ""}</span>
+                                </div>}
 
                                 <QRSection
                                     roomCode={roomCode}
@@ -464,7 +487,7 @@ PeerManager.setOnReceiveProgress((value) => {
 
                                 setRoomInput(
 
-                                    e.target.value.toUpperCase()
+                                    e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "")
 
                                 )
 
@@ -478,6 +501,7 @@ PeerManager.setOnReceiveProgress((value) => {
 
                        <button
     className="primary-btn"
+    disabled={roomInput.length !== 6}
     onClick={async () => {
 
         if (!roomInput.trim()) return;
@@ -545,7 +569,7 @@ PeerManager.setOnReceiveProgress((value) => {
             }
 
             {
-    downloadUrl && (
+    downloadUrl && receivedFiles.length === 1 && (
 
         <button
             className="download-button"
@@ -568,6 +592,18 @@ PeerManager.setOnReceiveProgress((value) => {
 
     )
 }
+            {receivedFiles.length > 1 && <div className="received-file-list">
+                {receivedFiles.map((received, index) => <button
+                    key={`${received.name}-${index}`}
+                    className="download-button"
+                    onClick={() => {
+                        const link = document.createElement("a");
+                        link.href = received.url;
+                        link.download = received.name;
+                        link.click();
+                    }}
+                >Descargar {received.name}</button>)}
+            </div>}
 
         </div>
 

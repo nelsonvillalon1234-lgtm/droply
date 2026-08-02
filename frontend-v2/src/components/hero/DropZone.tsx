@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { ArrowRight, FileUp, Send } from "lucide-react";
 
-type Props = { onFileSelected: (file: File) => void };
+type Props = { onFileSelected: (files: File[]) => void };
 
 function DropZone({ onFileSelected }: Props) {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -10,7 +10,7 @@ function DropZone({ onFileSelected }: Props) {
 
     function handleFiles(files: FileList | null) {
         if (!files || files.length === 0) return;
-        onFileSelected(files[0]);
+        onFileSelected(Array.from(files));
     }
 
     return (
@@ -43,11 +43,11 @@ function DropZone({ onFileSelected }: Props) {
                 handleFiles(event.dataTransfer.files);
             }}
         >
-            <input ref={inputRef} type="file" hidden onChange={(event) => handleFiles(event.target.files)} />
+            <input ref={inputRef} type="file" multiple hidden onChange={(event) => handleFiles(event.target.files)} />
             <span className="action-icon"><Send size={29} /></span>
             <span className="action-copy">
                 <strong>Enviar</strong>
-                <small>Elige o arrastra un archivo</small>
+                <small>Elige o arrastra uno o varios archivos</small>
             </span>
             <ArrowRight className="action-arrow" size={21} />
             <span className="dropzone-feedback" aria-hidden={!isDragging}>

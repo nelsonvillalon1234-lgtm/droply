@@ -96,7 +96,25 @@ export default function registerRoomEvents(socket: Socket) {
         const rawDevice = typeof payload === "object" && payload ? (payload as { device?: unknown }).device : undefined;
         const device = rawDevice ? sanitizeDevice(socket, rawDevice) : null;
         if (rawDevice && !device) return socket.emit("security-error", "Dispositivo invalido");
-        if (!RoomManager.joinRoom(code, socket.id)) {
+
+        const requestedRoom = RoomManager.getRoom(code);
+        let restoredExistingDevice = false;
+        if (requestedRoom?.purpose === "table" && device) {
+            const members = roomDevices.get(code);
+            const previousConnection = [...(members?.entries() ?? [])]
+                .find(([socketId, member]) => socketId !== socket.id && member.id === device.id);
+            if (previousConnection) {
+                const [previousSocketId] = previousConnection;
+                members?.delete(previousSocketId);
+                requestedRoom.members.delete(previousSocketId);
+                requestedRoom.members.add(socket.id);
+                if (requestedRoom.host === previousSocketId) requestedRoom.host = socket.id;
+                socket.nsp.sockets.get(previousSocketId)?.leave(code);
+                restoredExistingDevice = true;
+            }
+        }
+
+        if (!restoredExistingDevice && !RoomManager.joinRoom(code, socket.id)) {
             const unavailableRoom = RoomManager.getRoom(code);
             socket.emit(unavailableRoom?.purpose === "transfer" ? "transfer-code-used" : unavailableRoom ? "room-full" : "join-error");
             return;
@@ -181,6 +199,22 @@ export default function registerRoomEvents(socket: Socket) {
     socket.on("cancel-transfer", () => {
         const room = socket.data.roomCode as string | undefined;
         if (room) socket.to(room).emit("cancel-transfer");
+    });
+
+    socket.on("leave-room", () => {
+        const code = socket.data.roomCode as string | undefined;
+        if (!code) return;
+        const members = roomDevices.get(code);
+        members?.delete(socket.id);
+        RoomManager.leaveRoom(code, socket.id);
+        socket.leave(code);
+        socket.data.roomCode = undefined;
+        socket.data.roomDevice = undefined;
+        socket.to(code).emit("room-devices", [...(members?.values() ?? [])]);
+        if (!members?.size && !RoomManager.getRoom(code)) {
+            roomDevices.delete(code);
+            roomItems.delete(code);
+        }
     });
 
     socket.on("disconnect", () => {

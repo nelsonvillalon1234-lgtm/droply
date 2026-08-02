@@ -3,7 +3,7 @@ import DropZone from "./DropZone";
 import CodeButton from "./CodeButton";
 
 type Props = {
-    onFileSelected: (file: File) => void;
+    onFileSelected: (files: File[]) => void;
     onEnterCode: () => void;
     onOpenSharedTable: () => void;
 };

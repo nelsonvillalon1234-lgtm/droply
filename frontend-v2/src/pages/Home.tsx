@@ -33,9 +33,9 @@ const [transferOpen, setTransferOpen] =
     useState(false);
 
 const [sharedTableOpen, setSharedTableOpen] =
-    useState(false);
+    useState(() => Boolean(sessionStorage.getItem("droply-active-table")));
 
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [transferMode, setTransferMode] = useState<"sender" | "receiver">("sender");
 
 const [roomFromUrl, setRoomFromUrl] = useState("");
@@ -121,9 +121,9 @@ useEffect(() => {
 
 };
 
-function handleFileSelected(file: File) {
+function handleFileSelected(files: File[]) {
 
-    setSelectedFile(file);
+    setSelectedFiles(files);
 
     setTransferMode("sender");
 
@@ -238,7 +238,7 @@ function handleSelectPanel(panel: string) {
     isOpen={transferOpen}
     mode={transferMode}
     room={roomFromUrl}
-    file={selectedFile}
+    files={selectedFiles}
     onClose={() => {
 
         setTransferOpen(false);

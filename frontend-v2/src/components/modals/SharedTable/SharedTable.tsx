@@ -6,6 +6,7 @@ import type { ActivityItem, ChatMessage, DeviceType, TableItem } from "./types";
 
 import "./styles/sharedTable.css";
 import socket from "../../../services/socket";
+import { ensureDeviceRegistered } from "../../../services/socket";
 import deviceId, {
     deviceName,
     deviceType
@@ -47,7 +48,8 @@ export default function SharedTable({
     const [showMenu, setShowMenu] = useState(true);
     const [socketConnected, setSocketConnected] = useState(socket.connected);
 
-    const roomRef = useRef("");
+    const roomRef = useRef(sessionStorage.getItem("droply-active-table") ?? "");
+    const reconnectPendingRef = useRef(Boolean(roomRef.current));
 
 const [
     downloadItemId,
@@ -144,6 +146,21 @@ function handleJoinRoom(code: string) {
         code,
         device: { id: deviceId, name: deviceName, type: deviceType },
     });
+}
+
+function handleCloseTable() {
+    if (roomRef.current) socket.emit("leave-room");
+    sessionStorage.removeItem("droply-active-table");
+    roomRef.current = "";
+    reconnectPendingRef.current = false;
+    PeerManager.reset();
+    setHasRoom(false);
+    setRoomCode("");
+    onClose();
+}
+
+function handleLeaveTable() {
+    handleCloseTable();
 }
 
 function addTableItem(file: File, x: number, y: number, parentId: string | null = null) {
@@ -325,10 +342,37 @@ function handleDownload(item: TableItem) {
 
     useEffect(() => {
 
-    const handleConnect = () => setSocketConnected(true);
-    const handleDisconnect = () => setSocketConnected(false);
+    const restoreRoom = async () => {
+        const code = roomRef.current;
+        if (!code || !reconnectPendingRef.current) return;
+        try {
+            await ensureDeviceRegistered();
+            socket.emit("join-room", {
+                code,
+                device: { id: deviceId, name: deviceName, type: deviceType },
+            });
+        } catch {
+            setSocketConnected(false);
+        }
+    };
+    const handleConnect = () => {
+        setSocketConnected(true);
+        void restoreRoom();
+    };
+    const handleDisconnect = () => {
+        setSocketConnected(false);
+        reconnectPendingRef.current = Boolean(roomRef.current);
+        PeerManager.reset();
+    };
+    const handleVisibilityChange = () => {
+        if (document.visibilityState !== "visible" || !roomRef.current) return;
+        reconnectPendingRef.current = true;
+        if (!socket.connected) socket.connect();
+        else void restoreRoom();
+    };
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     socket.on("room-created", (code: string) => {
 
@@ -337,6 +381,8 @@ function handleDownload(item: TableItem) {
     setRoomCode(code);
 
     roomRef.current = code;
+
+    sessionStorage.setItem("droply-active-table", code);
 
 });
     socket.on("joined-room", (code: string) => {
@@ -347,6 +393,10 @@ function handleDownload(item: TableItem) {
 
     roomRef.current = code;
 
+    sessionStorage.setItem("droply-active-table", code);
+
+    reconnectPendingRef.current = false;
+
     setHasRoom(true);
 
     setCreatingRoom(false);
@@ -355,6 +405,11 @@ function handleDownload(item: TableItem) {
 
     socket.on("join-error", () => {
         setCreatingRoom(false);
+        if (reconnectPendingRef.current) {
+            sessionStorage.removeItem("droply-active-table");
+            roomRef.current = "";
+            reconnectPendingRef.current = false;
+        }
         window.dispatchEvent(new CustomEvent("droply-toast", { detail: "No encontramos esa mesa. Revisa el código." }));
     });
 
@@ -528,12 +583,15 @@ socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
     window.dispatchEvent(new CustomEvent("droply-toast", { detail: "El dispositivo que tiene este archivo esta desconectado." }));
 });
 
+    if (socket.connected && roomRef.current) void restoreRoom();
+
     return () => {
 
         socket.off("room-created");
 
         socket.off("connect", handleConnect);
         socket.off("disconnect", handleDisconnect);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
 
         socket.off("joined-room");
 
@@ -727,12 +785,13 @@ useEffect(() => {
     onRenameItem={handleRenameItem}
     onDeleteItem={handleDeleteItem}
     onRestoreItem={handleRestoreItem}
+    onDisconnect={handleLeaveTable}
 />
                 <button
 
                     className="shared-table-close"
 
-                    onClick={onClose}
+                    onClick={handleCloseTable}
 
                 >
 

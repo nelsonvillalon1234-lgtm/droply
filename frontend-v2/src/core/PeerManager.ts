@@ -31,6 +31,7 @@ class PeerManager {
 private onTimeCallback?: (time: string) => void;
 private onClipboardCallback?: (text: string) => void;
 private onReadyCallback?: () => void;
+private fileAckResolver?: () => void;
 
 private transferVersion = 0;
 private iceConfigurationReady: Promise<void> = Promise.resolve();
@@ -256,6 +257,12 @@ this.channel.onmessage = ({ data }) => {
 
         const message = JSON.parse(data);
 
+        if (message.type === "file-ack") {
+            this.fileAckResolver?.();
+            this.fileAckResolver = undefined;
+            return;
+        }
+
         if (message.type === "clipboard") {
 
     console.log(
@@ -307,19 +314,26 @@ this.channel.onmessage = ({ data }) => {
 
         if (message.type === "end") {
 
+    const completedName = fileName;
+    const completedChunks = received;
+    const completedSize = receivedSize;
+    const completedTotal = totalSize;
+    const completedHashQueue = hashQueue;
+
     void (async () => {
 
-    await hashQueue;
+    await completedHashQueue;
 
     const expectedHash = typeof message.hash === "string" ? message.hash : "";
     const actualHash = bytesToHex(receivedHash);
 
-    if (receivedSize !== totalSize || !expectedHash || actualHash !== expectedHash) {
+    if (completedSize !== completedTotal || !expectedHash || actualHash !== expectedHash) {
         console.error("❌ Verificación de integridad fallida");
         received = [];
         window.dispatchEvent(new CustomEvent("file-integrity-error", {
-            detail: { name: fileName }
+            detail: { name: completedName }
         }));
+        this.channel?.send(JSON.stringify({ type: "file-ack" }));
         return;
     }
 
@@ -328,7 +342,7 @@ this.channel.onmessage = ({ data }) => {
     console.log("✅ Archivo completo");
 
     const blob = new Blob(
-        received.map(
+        completedChunks.map(
             buffer => new Uint8Array(buffer)
         )
     );
@@ -343,7 +357,7 @@ this.channel.onmessage = ({ data }) => {
 
     type: "file",
 
-    name: fileName,
+    name: completedName,
 
     size: blob.size,
 
@@ -365,7 +379,7 @@ this.channel.onmessage = ({ data }) => {
 
                     url,
 
-                    name: fileName
+                    name: completedName
 
                 }
 
@@ -374,6 +388,8 @@ this.channel.onmessage = ({ data }) => {
         )
 
     );
+
+    this.channel?.send(JSON.stringify({ type: "file-ack" }));
 
     })();
 
@@ -540,6 +556,8 @@ this.channel.onclose = () => {
 
     reset() {
         this.transferVersion += 1;
+        this.fileAckResolver?.();
+        this.fileAckResolver = undefined;
         this.channel?.close();
         this.peer?.close();
         this.channel = null;
@@ -760,6 +778,14 @@ if (
         hashAlgorithm: "SHA-256-chain-v1"
 
     }));
+
+    await new Promise<void>((resolve) => {
+        const timeout = window.setTimeout(resolve, 15000);
+        this.fileAckResolver = () => {
+            window.clearTimeout(timeout);
+            resolve();
+        };
+    });
 
     this.isSending = false;
 
