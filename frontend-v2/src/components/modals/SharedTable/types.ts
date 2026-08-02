@@ -22,6 +22,17 @@ export type TableItem = {
 
 export type ActivityItem = { id: string; text: string; createdAt: number };
 
+export type SharedMedia = {
+    id: string;
+    videoId: string;
+    x: number;
+    y: number;
+    playing: boolean;
+    currentTime: number;
+    updatedAt: number;
+    updatedBy: string;
+};
+
 export type ChatMessage = {
     id: string;
     senderId: string;

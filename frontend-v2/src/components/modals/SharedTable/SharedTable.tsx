@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import type { ActivityItem, ChatMessage, DeviceType, TableItem } from "./types";
+import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem } from "./types";
 
 
 
@@ -103,7 +103,9 @@ const files = useRef(new Map<string, File>());
 const [items, setItems] = useState<TableItem[]>([]);
 const [messages, setMessages] = useState<ChatMessage[]>([]);
 const [activity, setActivity] = useState<ActivityItem[]>([]);
+const [sharedMedia, setSharedMedia] = useState<SharedMedia | null>(null);
 const undoRef = useRef<TableItem | null>(null);
+const knownDevicesRef = useRef<DeviceType[]>([]);
 
 function rememberRoom(code: string) {
     const now = Date.now();
@@ -284,6 +286,16 @@ function handleSendMessage(text: string) {
     socket.emit("chat-message", message);
 }
 
+function handleCreateMedia(url: string, x: number, y: number) {
+    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/i);
+    if (!match) return window.dispatchEvent(new CustomEvent("droply-toast", { detail: "Ese enlace de YouTube no es válido." }));
+    const media: SharedMedia = { id: crypto.randomUUID(), videoId: match[1], x, y, playing: false, currentTime: 0, updatedAt: Date.now(), updatedBy: deviceName };
+    setSharedMedia(media); socket.emit("media-create", media); recordActivity(`${deviceName} agregó un video compartido`);
+}
+function handleMediaControl(playing: boolean, currentTime: number) { socket.emit("media-control", { playing, currentTime }); }
+function handleMediaMove(x: number, y: number) { setSharedMedia(current=>current?{...current,x,y}:null);socket.emit("media-moved",{x,y}); }
+function handleMediaRemove() { setSharedMedia(null);socket.emit("media-remove");recordActivity(`${deviceName} quitó el video compartido`); }
+
 function handleMoveItem(
     item: TableItem,
     x: number,
@@ -461,8 +473,23 @@ function handleDownload(item: TableItem) {
 
     socket.on("receiver-connected", () => {});
 
-    socket.on("room-devices", (roomDevices: DeviceType[]) => setDevices(roomDevices));
+    socket.on("room-devices", (roomDevices: DeviceType[]) => {
+        const previous = knownDevicesRef.current;
+        const joined = roomDevices.find(device => !previous.some(entry => entry.id === device.id));
+        const left = previous.find(device => !roomDevices.some(entry => entry.id === device.id));
+        if (previous.length && joined) {
+            recordActivity(`${joined.name} entró a la mesa`);
+            window.dispatchEvent(new CustomEvent("droply-toast", { detail: `${joined.name} se conectó` }));
+        }
+        if (left) {
+            recordActivity(`${left.name} salió de la mesa`);
+            window.dispatchEvent(new CustomEvent("droply-toast", { detail: `${left.name} se desconectó` }));
+        }
+        knownDevicesRef.current = roomDevices;
+        setDevices(roomDevices);
+    });
     socket.on("room-items", (roomItems: TableItem[]) => setItems(roomItems));
+    socket.on("room-media", (media: SharedMedia | null) => setSharedMedia(media));
 
 socket.on("table-item-added", (item: TableItem) => {
 
@@ -644,6 +671,7 @@ socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
         socket.off("receiver-connected");
         socket.off("room-devices");
         socket.off("room-items");
+        socket.off("room-media");
 
         socket.off("table-item-added");
         socket.off("table-item-updated");
@@ -831,6 +859,11 @@ useEffect(() => {
     onRestoreItem={handleRestoreItem}
     onDisconnect={handleLeaveTable}
     recentRooms={recentRooms}
+    sharedMedia={sharedMedia}
+    onCreateMedia={handleCreateMedia}
+    onMediaControl={handleMediaControl}
+    onMediaMove={handleMediaMove}
+    onMediaRemove={handleMediaRemove}
 />
                 <button
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-    Activity, FilePlus2, FileText, Files, Folder, FolderPlus, LogOut,
+    Activity, ExternalLink, FilePlus2, FileText, Files, Folder, FolderPlus, LogOut,
     Map, MessageCircle, Minus, Plus, RotateCcw, Search, Send, StickyNote, Trash2, Undo2, Upload, Users, X
 } from "lucide-react";
 import "./../styles/workspace.css";
@@ -9,7 +9,8 @@ import type { RecentRoom } from "./CenterAction";
 import RoomPanel from "./RoomPanel";
 import Device from "./Device";
 import TableItem from "./TableItem";
-import type { ActivityItem, ChatMessage, DeviceType, TableItem as TableItemType } from "../types";
+import SharedYouTube from "./SharedYouTube";
+import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem as TableItemType } from "../types";
 import deviceId from "../../../../services/device";
 
 type Props = {
@@ -27,11 +28,16 @@ type Props = {
     onRestoreItem: (item: TableItemType) => void;
     onDisconnect: () => void;
     recentRooms: RecentRoom[];
+    sharedMedia: SharedMedia | null;
+    onCreateMedia: (url: string, x: number, y: number) => void;
+    onMediaControl: (playing: boolean, currentTime: number) => void;
+    onMediaMove: (x: number, y: number) => void;
+    onMediaRemove: () => void;
 };
 
 type Camera = { x: number; y: number; zoom: number };
 type ContextMenu = { clientX: number; clientY: number; x: number; y: number } | null;
-type Creator = { type: "folder" | "note"; clientX: number; clientY: number; x: number; y: number } | null;
+type Creator = { type: "folder" | "note" | "youtube"; clientX: number; clientY: number; x: number; y: number } | null;
 const WORLD_WIDTH = 5200;
 const WORLD_HEIGHT = 3600;
 const ITEM_MAX_X = WORLD_WIDTH - 180;
@@ -43,7 +49,8 @@ export default function Workspace(props: Props) {
     const { hasRoom, creatingRoom, roomCode, showMenu, devices, items, downloadItemId,
         downloadProgress, downloadComplete, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload,
         onMoveItem, onCancelDownload, onSendMessage, onCreateWorkspaceItem,
-        activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect, recentRooms } = props;
+        activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect, recentRooms,
+        sharedMedia, onCreateMedia, onMediaControl, onMediaMove, onMediaRemove } = props;
     const viewportRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const filePlacementRef = useRef<{ x: number; y: number } | null>(null);
@@ -60,6 +67,18 @@ export default function Workspace(props: Props) {
     const [currentFolder, setCurrentFolder] = useState<string | null>(null);
     const [chatOpen, setChatOpen] = useState(false);
     const [message, setMessage] = useState("");
+    const previousDevicesRef = useRef<DeviceType[]>(devices);
+    const [departingDevices, setDepartingDevices] = useState<DeviceType[]>([]);
+
+    useEffect(() => {
+        const currentIds = new Set(devices.map(device => device.id));
+        const departing = previousDevicesRef.current.filter(device => !currentIds.has(device.id));
+        previousDevicesRef.current = devices;
+        if (!departing.length) return;
+        setDepartingDevices(departing);
+        const timer = window.setTimeout(() => setDepartingDevices([]), 340);
+        return () => window.clearTimeout(timer);
+    }, [devices]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [view, setView] = useState<"files" | "folders" | "shared" | "activity" | "trash">("files");
     const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
@@ -199,7 +218,7 @@ export default function Workspace(props: Props) {
         });
     }
 
-    function openCreator(type: "folder" | "note") {
+    function openCreator(type: "folder" | "note" | "youtube") {
         if (!contextMenu) return;
         setCreator({ type, ...contextMenu });
         setCreatorValue(type === "folder" ? "Nueva carpeta" : "");
@@ -224,6 +243,7 @@ export default function Workspace(props: Props) {
         const value = creatorValue.trim();
         if (creator.type === "folder" && value) onCreateWorkspaceItem("folder", value, creator.x, creator.y, "", currentFolder);
         if (creator.type === "note") onCreateWorkspaceItem("note", value.slice(0, 28) || "Nueva nota", creator.x, creator.y, value, currentFolder);
+        if (creator.type === "youtube" && value) onCreateMedia(value, creator.x, creator.y);
         setCreator(null);
     }
 
@@ -260,7 +280,7 @@ export default function Workspace(props: Props) {
         {hasRoom && <>
             <aside className="workspace-sidebar">
                 <div className="workspace-project"><span>✦</span><div><strong>Mesa {roomCode}</strong><small>{devices.length} conectado{devices.length === 1 ? "" : "s"}</small></div></div>
-                <section><h3>Integrantes ({devices.length}/4)</h3>{devices.map(device => <div className="sidebar-device" key={device.id}><Device name={device.name} type={device.type} inPanel /></div>)}</section>
+                <section><h3>Integrantes ({devices.length}/4)</h3>{devices.map((device,index) => <div className="sidebar-device" style={{animationDelay:`${index*45}ms`}} key={device.id}><Device name={device.name} type={device.type} inPanel /></div>)}{departingDevices.map(device=><div className="sidebar-device is-leaving" key={`leaving-${device.id}`}><Device name={device.name} type={device.type} inPanel /></div>)}</section>
                 <nav>
                     <button className={view==="files"?"is-active":""} onClick={()=>setView("files")}><Files size={17}/>Todos los archivos</button>
                     <button className={view==="folders"?"is-active":""} onClick={()=>setView("folders")}><Folder size={17}/>Carpetas</button>
@@ -270,7 +290,7 @@ export default function Workspace(props: Props) {
                     <button className="workspace-disconnect" onClick={onDisconnect}><LogOut size={17}/>Desconectar</button>
                 </nav>
                 <div className="space-health"><strong>Disponibilidad</strong><span>● {Math.round((devices.length / 4) * 100)}% de la mesa conectada</span></div>
-                <small className="workspace-version">Droply beta · v0.5.6</small>
+                <small className="workspace-version">Droply beta · v0.6.0</small>
             </aside>
 
             <div className="workspace-search">
@@ -297,6 +317,7 @@ export default function Workspace(props: Props) {
                         selected={selectedId===item.id} onSelect={entry=>setSelectedId(entry.id)} onDelete={onDeleteItem} onRename={onRenameItem}
                         downloadProgress={downloadItemId===item.id ? downloadProgress : undefined}
                         downloadComplete={downloadItemId===item.id && downloadComplete}/>}) }
+                    {sharedMedia&&<SharedYouTube media={sharedMedia} scale={camera.zoom} onControl={onMediaControl} onMove={onMediaMove} onRemove={onMediaRemove}/>}
                 </div>
             </div>
 
@@ -306,7 +327,7 @@ export default function Workspace(props: Props) {
             {folder&&<aside className="workspace-folder-window" onPointerDown={e=>e.stopPropagation()}>
                 <header><div><Folder size={19}/><span><strong>{folder.name}</strong><small>{folderItems.length} elemento{folderItems.length===1?"":"s"}</small></span></div><button onClick={()=>setCurrentFolder(folder.parentId ?? null)} aria-label="Cerrar carpeta"><X size={18}/></button></header>
                 <div className="folder-window-grid">
-                    {folderItems.map(item=>{const Icon=item.type==="folder"?Folder:item.type==="note"?StickyNote:FileText;return <button key={item.id} onDoubleClick={()=>item.type==="folder"?setCurrentFolder(item.id):onDownload(item)} onClick={()=>setSelectedId(item.id)}><Icon size={25}/><strong>{item.name}</strong><small>{item.ownerName}</small></button>})}
+                    {folderItems.map(item=>{const Icon=item.type==="folder"?Folder:item.type==="note"?StickyNote:FileText;return <div className="folder-window-item" key={item.id}><button onDoubleClick={()=>item.type==="folder"?setCurrentFolder(item.id):onDownload(item)} onClick={()=>setSelectedId(item.id)}><Icon size={25}/><strong>{item.name}</strong><small>{item.ownerName}</small></button><button className="folder-item-eject" onClick={()=>onMoveItem(item,Math.min(ITEM_MAX_X,folder.x+190),Math.min(ITEM_MAX_Y,folder.y+30),null)}>Sacar a la mesa</button></div>})}
                     <button className="folder-window-add" onClick={chooseFolderFile}><Plus size={24}/><strong>Agregar archivo</strong><small>Desde este dispositivo</small></button>
                 </div>
                 {folderItems.length===0&&<p>Esta carpeta está vacía. Agrega el primer archivo.</p>}
@@ -321,8 +342,8 @@ export default function Workspace(props: Props) {
                 </div>
             </div>
             <input ref={fileInputRef} className="workspace-file-input" type="file" onChange={event=>{const file=event.target.files?.[0];const placement=filePlacementRef.current;if(file&&placement)onAddFile(file,placement.x,placement.y,currentFolder);filePlacementRef.current=null;event.currentTarget.value="";setContextMenu(null);}} />
-            {contextMenu && <div className="workspace-context-menu" style={{left:contextMenu.clientX,top:contextMenu.clientY}} onClick={e=>e.stopPropagation()}><button onClick={chooseWorkspaceFile}><Upload size={18}/>Agregar archivo</button><button onClick={()=>openCreator("folder")}><FolderPlus size={18}/>Nueva carpeta</button><button onClick={()=>openCreator("note")}><FilePlus2 size={18}/>Nueva nota de texto</button></div>}
-            {creator && <div className="workspace-creator-backdrop" onPointerDown={()=>setCreator(null)}><form className="workspace-creator" onSubmit={e=>{e.preventDefault();confirmCreator();}} onPointerDown={e=>e.stopPropagation()}><label>{creator.type==="folder"?"Nombre de la carpeta":"Escribe tu nota"}</label>{creator.type==="folder"?<input autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)} onFocus={e=>e.currentTarget.select()}/>:<textarea autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)}/>}<div><button type="button" onClick={()=>setCreator(null)}>Cancelar</button><button type="submit">Crear</button></div></form></div>}
+            {contextMenu && <div className="workspace-context-menu" style={{left:contextMenu.clientX,top:contextMenu.clientY}} onClick={e=>e.stopPropagation()}><button onClick={chooseWorkspaceFile}><Upload size={18}/>Agregar archivo</button><button onClick={()=>openCreator("folder")}><FolderPlus size={18}/>Nueva carpeta</button><button onClick={()=>openCreator("note")}><FilePlus2 size={18}/>Nueva nota de texto</button><button onClick={()=>openCreator("youtube")}><ExternalLink size={18}/>Video de YouTube</button></div>}
+            {creator && <div className="workspace-creator-backdrop" onPointerDown={()=>setCreator(null)}><form className="workspace-creator" onSubmit={e=>{e.preventDefault();confirmCreator();}} onPointerDown={e=>e.stopPropagation()}><label>{creator.type==="folder"?"Nombre de la carpeta":creator.type==="youtube"?"Enlace de YouTube":"Escribe tu nota"}</label>{creator.type==="folder"||creator.type==="youtube"?<input type={creator.type==="youtube"?"url":"text"} placeholder={creator.type==="youtube"?"https://youtube.com/watch?v=...":""} autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)} onFocus={e=>e.currentTarget.select()}/>:<textarea autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)}/>}<div><button type="button" onClick={()=>setCreator(null)}>Cancelar</button><button type="submit">{creator.type==="youtube"?"Agregar":"Crear"}</button></div></form></div>}
 
             <div className="workspace-chat">{chatOpen ? <div className="chat-panel"><header><strong>Chat de la mesa</strong><button onClick={()=>setChatOpen(false)}><X size={17}/></button></header><div className="chat-messages">{messages.length===0&&<p>Coordina aquí sin salir de la mesa.</p>}{messages.map(item=><div className={`chat-message ${item.senderId===deviceId?"is-own":""}`} key={item.id}><strong>{item.senderName}</strong><span>{item.text}</span></div>)}</div><div className="chat-compose"><input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")submitMessage();}} placeholder="Escribe un mensaje"/><button onClick={submitMessage}><Send size={17}/></button></div></div> : <button className="chat-toggle" onClick={()=>setChatOpen(true)}><MessageCircle size={22}/>{messages.length>0&&<span>{messages.length}</span>}</button>}</div>
         </>}

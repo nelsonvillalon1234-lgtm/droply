@@ -20,13 +20,16 @@ type TableItem = {
     parentId?: string | null;
     deleted?: boolean;
 };
+type SharedMedia = { id: string; videoId: string; x: number; y: number; playing: boolean; currentTime: number; updatedAt: number; updatedBy: string };
 
 const roomDevices = new Map<string, Map<string, RoomDevice>>();
 const roomItems = new Map<string, Map<string, TableItem>>();
+const roomMedia = new Map<string, SharedMedia>();
 const cleanupTimer = setInterval(() => {
     for (const code of RoomManager.pruneExpiredRooms()) {
         roomDevices.delete(code);
         roomItems.delete(code);
+        roomMedia.delete(code);
     }
 }, 10 * 60_000);
 cleanupTimer.unref();
@@ -108,6 +111,7 @@ export default function registerRoomEvents(socket: Socket) {
         if (!requestedRoom) {
             roomDevices.delete(code);
             roomItems.delete(code);
+            roomMedia.delete(code);
         }
         let restoredExistingDevice = false;
         if (requestedRoom?.purpose === "table" && device) {
@@ -144,6 +148,7 @@ export default function registerRoomEvents(socket: Socket) {
         const joinedRoom = RoomManager.getRoom(code);
         if (joinedRoom?.expiresAt) socket.emit("room-expires-at", joinedRoom.expiresAt);
         socket.emit("room-items", [...(roomItems.get(code)?.values() ?? [])]);
+        socket.emit("room-media", roomMedia.get(code) ?? null);
         socket.to(code).emit("receiver-connected");
     });
 
@@ -213,6 +218,53 @@ export default function registerRoomEvents(socket: Socket) {
         if (room) socket.to(room).emit("cancel-transfer");
     });
 
+    socket.on("media-create", (input: unknown) => {
+        const room = socket.data.roomCode as string | undefined;
+        const sender = socket.data.roomDevice as RoomDevice | undefined;
+        if (!room || !sender || !input || typeof input !== "object" || !allowMutation(socket, "media")) return;
+        const value = input as Record<string, unknown>;
+        const x = finiteNumber(value.x, 0, 5020);
+        const y = finiteNumber(value.y, 0, 3420);
+        const videoId = typeof value.videoId === "string" && /^[\w-]{11}$/.test(value.videoId) ? value.videoId : null;
+        if (!isSafeId(value.id) || !videoId || x === null || y === null) return;
+        const media: SharedMedia = { id: value.id as string, videoId, x, y, playing: false, currentTime: 0, updatedAt: Date.now(), updatedBy: sender.name };
+        roomMedia.set(room, media);
+        socket.nsp.to(room).emit("room-media", media);
+    });
+
+    socket.on("media-control", (input: unknown) => {
+        const room = socket.data.roomCode as string | undefined;
+        const sender = socket.data.roomDevice as RoomDevice | undefined;
+        const previous = room ? roomMedia.get(room) : undefined;
+        if (!room || !sender || !previous || !input || typeof input !== "object" || !allowMutation(socket, "media-control")) return;
+        const value = input as Record<string, unknown>;
+        const currentTime = finiteNumber(value.currentTime, 0, 7 * 24 * 60 * 60);
+        if (currentTime === null || typeof value.playing !== "boolean") return;
+        const media = { ...previous, playing: value.playing, currentTime, updatedAt: Date.now(), updatedBy: sender.name };
+        roomMedia.set(room, media);
+        socket.nsp.to(room).emit("room-media", media);
+    });
+
+    socket.on("media-moved", (input: unknown) => {
+        const room = socket.data.roomCode as string | undefined;
+        const previous = room ? roomMedia.get(room) : undefined;
+        if (!room || !previous || !input || typeof input !== "object" || !allowMutation(socket, "media-move")) return;
+        const value = input as Record<string, unknown>;
+        const x = finiteNumber(value.x, 0, 5020);
+        const y = finiteNumber(value.y, 0, 3420);
+        if (x === null || y === null) return;
+        const media = { ...previous, x, y };
+        roomMedia.set(room, media);
+        socket.nsp.to(room).emit("room-media", media);
+    });
+
+    socket.on("media-remove", () => {
+        const room = socket.data.roomCode as string | undefined;
+        if (!room || !allowMutation(socket, "media-remove")) return;
+        roomMedia.delete(room);
+        socket.nsp.to(room).emit("room-media", null);
+    });
+
     socket.on("leave-room", () => {
         const code = socket.data.roomCode as string | undefined;
         if (!code) return;
@@ -226,6 +278,7 @@ export default function registerRoomEvents(socket: Socket) {
         if (!members?.size && !RoomManager.getRoom(code)) {
             roomDevices.delete(code);
             roomItems.delete(code);
+            roomMedia.delete(code);
         }
     });
 
@@ -239,6 +292,7 @@ export default function registerRoomEvents(socket: Socket) {
         if (!members?.size && !RoomManager.getRoom(code)) {
             roomDevices.delete(code);
             roomItems.delete(code);
+            roomMedia.delete(code);
         }
     });
 }
