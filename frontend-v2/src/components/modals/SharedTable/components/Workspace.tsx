@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
     Activity, ChevronLeft, FilePlus2, Files, Folder, FolderPlus, LogOut,
-    MessageCircle, Minus, Plus, RotateCcw, Search, Send, Trash2, Undo2, Upload, Users, X
+    Map, MessageCircle, Minus, Plus, RotateCcw, Search, Send, Trash2, Undo2, Upload, Users, X
 } from "lucide-react";
 import "./../styles/workspace.css";
 import CenterAction from "./CenterAction";
@@ -32,6 +32,12 @@ type Props = {
 type Camera = { x: number; y: number; zoom: number };
 type ContextMenu = { clientX: number; clientY: number; x: number; y: number } | null;
 type Creator = { type: "folder" | "note"; clientX: number; clientY: number; x: number; y: number } | null;
+const WORLD_WIDTH = 5200;
+const WORLD_HEIGHT = 3600;
+const ITEM_MAX_X = WORLD_WIDTH - 180;
+const ITEM_MAX_Y = WORLD_HEIGHT - 180;
+const MINIMAP_WIDTH = 190;
+const MINIMAP_HEIGHT = 132;
 
 export default function Workspace(props: Props) {
     const { hasRoom, creatingRoom, roomCode, showMenu, devices, items, downloadItemId,
@@ -56,12 +62,23 @@ export default function Workspace(props: Props) {
     const [message, setMessage] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [view, setView] = useState<"files" | "folders" | "shared" | "activity" | "trash">("files");
+    const [viewportSize, setViewportSize] = useState({ width: 1, height: 1 });
 
     const currentItems = items.filter(item => !item.deleted && (item.parentId ?? null) === currentFolder);
     const displayedItems = view === "folders" ? currentItems.filter(item => item.type === "folder") : view === "shared" ? currentItems.filter(item => item.ownerId !== deviceId) : currentItems;
     const normalizedQuery = query.trim().toLocaleLowerCase();
     const results = normalizedQuery ? items.filter(item => !item.deleted && item.name.toLocaleLowerCase().includes(normalizedQuery)) : [];
     const folder = currentFolder ? items.find(item => item.id === currentFolder) : null;
+    const minimapViewport = {
+        left: Math.max(0, Math.min(MINIMAP_WIDTH, (-camera.x / camera.zoom) * MINIMAP_WIDTH / WORLD_WIDTH)),
+        top: Math.max(0, Math.min(MINIMAP_HEIGHT, (-camera.y / camera.zoom) * MINIMAP_HEIGHT / WORLD_HEIGHT)),
+        width: Math.min(MINIMAP_WIDTH, viewportSize.width / camera.zoom * MINIMAP_WIDTH / WORLD_WIDTH),
+        height: Math.min(MINIMAP_HEIGHT, viewportSize.height / camera.zoom * MINIMAP_HEIGHT / WORLD_HEIGHT),
+    };
+
+    function clampWorldPoint(point: { x: number; y: number }) {
+        return { x: Math.max(0, Math.min(ITEM_MAX_X, point.x)), y: Math.max(0, Math.min(ITEM_MAX_Y, point.y)) };
+    }
 
     function clampCamera(next: Camera): Camera {
         const rect = viewportRef.current?.getBoundingClientRect();
@@ -73,6 +90,15 @@ export default function Workspace(props: Props) {
             y: Math.min(margin, Math.max(rect.height - 3600 * next.zoom - margin, next.y)),
         };
     }
+
+    useEffect(() => {
+        const viewport = viewportRef.current;
+        if (!hasRoom || !viewport) return;
+        const observer = new ResizeObserver(([entry]) => setViewportSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
+        observer.observe(viewport);
+        setViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight });
+        return () => observer.disconnect();
+    }, [hasRoom]);
 
     useEffect(() => {
         const viewport = viewportRef.current;
@@ -158,7 +184,7 @@ export default function Workspace(props: Props) {
     function screenToWorld(clientX: number, clientY: number) {
         const rect = viewportRef.current?.getBoundingClientRect();
         if (!rect) return { x: 0, y: 0 };
-        return { x: (clientX - rect.left - camera.x) / camera.zoom, y: (clientY - rect.top - camera.y) / camera.zoom };
+        return clampWorldPoint({ x: (clientX - rect.left - camera.x) / camera.zoom, y: (clientY - rect.top - camera.y) / camera.zoom });
     }
 
     function zoomAt(clientX: number, clientY: number, nextZoom: number) {
@@ -195,8 +221,18 @@ export default function Workspace(props: Props) {
     }
 
     function moveItem(item: TableItemType, x: number, y: number) {
-        const target = currentItems.find(candidate => candidate.type === "folder" && candidate.id !== item.id && Math.hypot(candidate.x - x, candidate.y - y) < 145);
-        onMoveItem(item, target ? 120 : x, target ? 120 : y, target?.id ?? currentFolder);
+        const bounded = clampWorldPoint({ x, y });
+        const target = currentItems.find(candidate => candidate.type === "folder" && candidate.id !== item.id && Math.hypot(candidate.x - bounded.x, candidate.y - bounded.y) < 145);
+        onMoveItem(item, target ? 120 : bounded.x, target ? 120 : bounded.y, target?.id ?? currentFolder);
+    }
+
+    function moveFromMinimap(clientX: number, clientY: number) {
+        const map = document.querySelector(".workspace-minimap-track")?.getBoundingClientRect();
+        const viewport = viewportRef.current?.getBoundingClientRect();
+        if (!map || !viewport) return;
+        const worldX = Math.max(0, Math.min(WORLD_WIDTH, (clientX - map.left) / map.width * WORLD_WIDTH));
+        const worldY = Math.max(0, Math.min(WORLD_HEIGHT, (clientY - map.top) / map.height * WORLD_HEIGHT));
+        setCamera(current => clampCamera({ ...current, x: viewport.width / 2 - worldX * current.zoom, y: viewport.height / 2 - worldY * current.zoom }));
     }
 
     function focusItem(item: TableItemType) {
@@ -227,7 +263,7 @@ export default function Workspace(props: Props) {
                     <button className="workspace-disconnect" onClick={onDisconnect}><LogOut size={17}/>Desconectar</button>
                 </nav>
                 <div className="space-health"><strong>Disponibilidad</strong><span>● {Math.round((devices.length / 4) * 100)}% de la mesa conectada</span></div>
-                <small className="workspace-version">Droply beta · v0.5.3</small>
+                <small className="workspace-version">Droply beta · v0.5.4</small>
             </aside>
 
             <div className="workspace-search">
@@ -249,11 +285,11 @@ export default function Workspace(props: Props) {
                 onDrop={e => { e.preventDefault(); const file=e.dataTransfer.files[0]; if(file){ const p=screenToWorld(e.clientX,e.clientY); onAddFile(file,p.x,p.y,currentFolder); } }}
                 onContextMenu={e => { e.preventDefault(); const p=screenToWorld(e.clientX,e.clientY); setContextMenu({clientX:e.clientX,clientY:e.clientY,...p}); }}>
                 <div className="workspace-world" style={{transform:`translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})`}}>
-                    {(view==="files"||view==="folders"||view==="shared")&&displayedItems.map(item => <TableItem key={item.id} item={item} scale={camera.zoom} onDownload={onDownload} onMove={moveItem}
+                    {(view==="files"||view==="folders"||view==="shared")&&displayedItems.map(item => { const boundedItem={...item,...clampWorldPoint(item)}; return <TableItem key={item.id} item={boundedItem} scale={camera.zoom} onDownload={onDownload} onMove={moveItem}
                         onOpenFolder={id => setCurrentFolder(id)} onCancelDownload={onCancelDownload}
                         selected={selectedId===item.id} onSelect={entry=>setSelectedId(entry.id)} onDelete={onDeleteItem} onRename={onRenameItem}
                         downloadProgress={downloadItemId===item.id ? downloadProgress : undefined}
-                        downloadComplete={downloadItemId===item.id && downloadComplete}/>) }
+                        downloadComplete={downloadItemId===item.id && downloadComplete}/>}) }
                 </div>
             </div>
 
@@ -261,6 +297,13 @@ export default function Workspace(props: Props) {
             {view==="trash"&&<aside className="workspace-data-panel"><header><Trash2 size={18}/><strong>Papelera</strong></header>{items.filter(item=>item.deleted).length?items.filter(item=>item.deleted).map(item=><div className="trash-row" key={item.id}><div><strong>{item.name}</strong><small>{item.type}</small></div><button onClick={()=>onRestoreItem(item)}><RotateCcw size={15}/>Restaurar</button></div>):<p>La papelera está vacía.</p>}</aside>}
 
             <div className="canvas-controls"><button onClick={() => zoomAt(innerWidth/2,innerHeight/2,camera.zoom-.1)}><Minus/></button><span>{Math.round(camera.zoom*100)}%</span><button onClick={() => zoomAt(innerWidth/2,innerHeight/2,camera.zoom+.1)}><Plus/></button><button onClick={() => setCamera({x:220,y:140,zoom:1})}>Centrar</button></div>
+            <div className="workspace-minimap" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);moveFromMinimap(e.clientX,e.clientY);}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))moveFromMinimap(e.clientX,e.clientY);}}>
+                <header><Map size={14}/><span>Mapa</span></header>
+                <div className="workspace-minimap-track">
+                    {items.filter(item=>!item.deleted).map(item=><i key={item.id} className={`is-${item.type}`} style={{left:`${Math.max(0,Math.min(ITEM_MAX_X,item.x))*100/WORLD_WIDTH}%`,top:`${Math.max(0,Math.min(ITEM_MAX_Y,item.y))*100/WORLD_HEIGHT}%`}} />)}
+                    <b style={{left:minimapViewport.left,top:minimapViewport.top,width:Math.max(12,minimapViewport.width),height:Math.max(10,minimapViewport.height)}} />
+                </div>
+            </div>
             <input ref={fileInputRef} className="workspace-file-input" type="file" onChange={event=>{const file=event.target.files?.[0];const placement=filePlacementRef.current;if(file&&placement)onAddFile(file,placement.x,placement.y,currentFolder);filePlacementRef.current=null;event.currentTarget.value="";setContextMenu(null);}} />
             {contextMenu && <div className="workspace-context-menu" style={{left:contextMenu.clientX,top:contextMenu.clientY}} onClick={e=>e.stopPropagation()}><button onClick={chooseWorkspaceFile}><Upload size={18}/>Agregar archivo</button><button onClick={()=>openCreator("folder")}><FolderPlus size={18}/>Nueva carpeta</button><button onClick={()=>openCreator("note")}><FilePlus2 size={18}/>Nueva nota de texto</button></div>}
             {creator && <div className="workspace-creator-backdrop" onPointerDown={()=>setCreator(null)}><form className="workspace-creator" onSubmit={e=>{e.preventDefault();confirmCreator();}} onPointerDown={e=>e.stopPropagation()}><label>{creator.type==="folder"?"Nombre de la carpeta":"Escribe tu nota"}</label>{creator.type==="folder"?<input autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)} onFocus={e=>e.currentTarget.select()}/>:<textarea autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)}/>}<div><button type="button" onClick={()=>setCreator(null)}>Cancelar</button><button type="submit">Crear</button></div></form></div>}
