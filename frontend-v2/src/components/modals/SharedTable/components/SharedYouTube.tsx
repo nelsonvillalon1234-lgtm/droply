@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, GripHorizontal, X } from "lucide-react";
+import { ExternalLink, GripHorizontal, Pause, Play, X } from "lucide-react";
 import type { SharedMedia } from "../types";
 
 type Player = {
@@ -96,7 +96,7 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
                 videoId: media.videoId,
                 width: "100%",
                 height: "100%",
-                playerVars: { playsinline: 1, rel: 0 },
+                playerVars: { playsinline: 1, rel: 0, controls: 0, disablekb: 1 },
                 events: {
                     onReady: (event: { target: Player }) => {
                         if (!active) return;
@@ -147,6 +147,12 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
         dragRef.current = null;
     }
 
+    function togglePlayback() {
+        if (!isReady) return;
+        const currentTime = playerRef.current?.getCurrentTime?.() ?? media.currentTime;
+        onControl(!media.playing, currentTime);
+    }
+
     return <section ref={cardRef} tabIndex={-1} className="shared-youtube" style={{ left: position.x, top: position.y }}>
         <header
             onPointerDown={event => {
@@ -185,7 +191,12 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
             <a href={`https://youtu.be/${media.videoId}`} target="_blank" rel="noreferrer"><ExternalLink size={15}/></a>
             <button onClick={onRemove}><X size={16}/></button>
         </header>
-        <div className="shared-youtube-player" ref={mountRef}/>
+        <div className="shared-youtube-stage">
+            <div className="shared-youtube-player" ref={mountRef}/>
+            <button className="shared-youtube-toggle" onClick={togglePlayback} disabled={!isReady} aria-label={media.playing ? "Pausar video" : "Reproducir video"}>
+                {media.playing ? <Pause size={25} fill="currentColor"/> : <Play size={25} fill="currentColor"/>}
+            </button>
+        </div>
         <footer><span>{isReady ? (media.playing ? "Reproduciendo" : "En pausa") : "Preparando video…"}</span><small>Último control: {media.updatedBy}</small></footer>
     </section>;
 }

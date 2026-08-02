@@ -123,6 +123,7 @@ export default function Workspace(props: Props) {
     useEffect(() => {
         const viewport = viewportRef.current;
         if (!hasRoom || !viewport) return;
+        const workspace = viewport.closest(".workspace");
         const handleWheel = (event: WheelEvent) => {
             if (!event.ctrlKey || !viewport.contains(event.target as Node)) return;
             event.preventDefault();
@@ -135,8 +136,18 @@ export default function Workspace(props: Props) {
                 return clampCamera({ zoom, x: event.clientX - rect.left - worldX * zoom, y: event.clientY - rect.top - worldY * zoom });
             });
         };
+        const blockBrowserZoomKeys = (event: KeyboardEvent) => {
+            if (!event.ctrlKey || !["+", "-", "=", "0"].includes(event.key)) return;
+            const target = event.target as Node | null;
+            if (!target || !workspace?.contains(target)) return;
+            event.preventDefault();
+        };
         window.addEventListener("wheel", handleWheel, { passive: false, capture: true });
-        return () => window.removeEventListener("wheel", handleWheel, { capture: true });
+        window.addEventListener("keydown", blockBrowserZoomKeys, true);
+        return () => {
+            window.removeEventListener("wheel", handleWheel, { capture: true });
+            window.removeEventListener("keydown", blockBrowserZoomKeys, true);
+        };
     }, [hasRoom]);
 
     useEffect(() => {
