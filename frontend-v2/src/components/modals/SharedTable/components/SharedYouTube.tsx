@@ -17,6 +17,11 @@ type YouTubeWindow = Window & {
 
 let apiPromise: Promise<void> | null = null;
 
+function isIOSDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent)
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 function loadApi() {
     const global = window as YouTubeWindow;
     if (global.YT?.Player) return Promise.resolve();
@@ -55,6 +60,7 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
     const dragRef = useRef<{ clientX: number; clientY: number; x: number; y: number; nextX: number; nextY: number } | null>(null);
     const [position, setPosition] = useState({ x: media.x, y: media.y });
     const [isReady, setIsReady] = useState(false);
+    const [playbackUnlocked, setPlaybackUnlocked] = useState(() => !isIOSDevice());
     mediaRef.current = media;
 
     useEffect(() => {
@@ -108,6 +114,7 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
                     onStateChange: (event: PlayerEvent) => {
                         if (!active || remoteRef.current) return;
                         playerRef.current = event.target;
+                        if (event.data === 1) setPlaybackUnlocked(true);
                         if (event.data === 1 || event.data === 2) {
                             onControl(event.data === 1, event.target.getCurrentTime?.() ?? 0);
                         }
@@ -131,11 +138,11 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
         const expected = current.currentTime + (current.playing ? (Date.now() - current.updatedAt) / 1000 : 0);
         const actual = player.getCurrentTime?.() ?? 0;
         if (Math.abs(actual - expected) > 1.5) player.seekTo?.(expected, true);
-        if (current.playing) player.playVideo?.();
+        if (current.playing && playbackUnlocked) player.playVideo?.();
         else player.pauseVideo?.();
         const timer = window.setTimeout(() => { remoteRef.current = false; }, 650);
         return () => window.clearTimeout(timer);
-    }, [isReady, media.playing, media.currentTime, media.updatedAt]);
+    }, [isReady, media.playing, media.currentTime, media.updatedAt, playbackUnlocked]);
 
     function finishDrag() {
         const completed = dragRef.current;
@@ -151,7 +158,18 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
 
     function togglePlayback() {
         if (!isReady) return;
-        const currentTime = playerRef.current?.getCurrentTime?.() ?? media.currentTime;
+        const player = playerRef.current;
+        const expected = media.currentTime + (media.playing ? (Date.now() - media.updatedAt) / 1000 : 0);
+        if (!playbackUnlocked) {
+            player?.seekTo?.(expected, true);
+            player?.playVideo?.();
+            setPlaybackUnlocked(true);
+            onControl(true, expected);
+            return;
+        }
+        const currentTime = player?.getCurrentTime?.() ?? media.currentTime;
+        if (media.playing) player?.pauseVideo?.();
+        else player?.playVideo?.();
         onControl(!media.playing, currentTime);
     }
 
@@ -197,8 +215,8 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
         </header>
         <div className="shared-youtube-stage">
             <div className="shared-youtube-player" ref={mountRef}/>
-            <button className="shared-youtube-toggle" onClick={togglePlayback} disabled={!isReady} aria-label={media.playing ? "Pausar video" : "Reproducir video"}>
-                {media.playing ? <Pause size={25} fill="currentColor"/> : <Play size={25} fill="currentColor"/>}
+            <button className={`shared-youtube-toggle ${!playbackUnlocked ? "needs-activation" : ""}`} onClick={togglePlayback} disabled={!isReady} aria-label={!playbackUnlocked ? "Activar video en este dispositivo" : media.playing ? "Pausar video" : "Reproducir video"}>
+                {!playbackUnlocked ? <><Play size={25} fill="currentColor"/><span>Toca para ver</span></> : media.playing ? <Pause size={25} fill="currentColor"/> : <Play size={25} fill="currentColor"/>}
             </button>
         </div>
         <footer><span>{isReady ? (media.playing ? "Reproduciendo" : "En pausa") : "Preparando video…"}</span><small>Último control: {media.updatedBy}</small></footer>
