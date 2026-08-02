@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import "./styles/transferModal.css";
 
-import socket from "../../../services/socket";
+import socket, { ensureDeviceRegistered } from "../../../services/socket";
 import PeerManager from "../../../core/PeerManager";
 import deviceId, { deviceName } from "../../../services/device";
 
@@ -214,11 +214,30 @@ PeerManager.setOnReceiveProgress((value) => {
         // MODO EMISOR
         //----------------------------------
 
-        if (mode === "sender") {
+        let cancelled = false;
 
-            socket.emit("create-room", { purpose: "transfer", device: currentDevice() });
+        const enterTransferRoom = async () => {
+            try {
+                await ensureDeviceRegistered();
+                if (cancelled) return;
 
-        }
+                if (mode === "sender") {
+                    socket.emit("create-room", { purpose: "transfer", device: currentDevice() });
+                    return;
+                }
+
+                if (mode === "receiver" && room) {
+                    roomRef.current = room;
+                    setRoomCode(room);
+                    PeerManager.initialize(room);
+                    socket.emit("join-room", { code: room, device: currentDevice() });
+                }
+            } catch {
+                if (!cancelled) setJoinError("No se pudo conectar con Droply. Inténtalo nuevamente.");
+            }
+        };
+
+        void enterTransferRoom();
 
         //----------------------------------
         // MODO RECEPTOR
@@ -246,21 +265,6 @@ PeerManager.setOnReceiveProgress((value) => {
                 }
             );
 
-            if (room) {
-
-                roomRef.current = room;
-
-                setRoomCode(room);
-
-                PeerManager.initialize(room);
-
-                socket.emit(
-                    "join-room",
-                    { code: room, device: currentDevice() }
-                );
-
-            }
-
         }
 
         //----------------------------------
@@ -268,6 +272,8 @@ PeerManager.setOnReceiveProgress((value) => {
         //----------------------------------
 
         return () => {
+
+            cancelled = true;
 
             socket.off(
                 "room-created",
@@ -466,7 +472,7 @@ PeerManager.setOnReceiveProgress((value) => {
 
                        <button
     className="primary-btn"
-    onClick={() => {
+    onClick={async () => {
 
         if (!roomInput.trim()) return;
 
@@ -476,10 +482,14 @@ PeerManager.setOnReceiveProgress((value) => {
 
         console.log("🔗 Uniéndose a:", roomRef.current);
 
-        PeerManager.initialize(roomRef.current);
-
         setJoinError("");
-        socket.emit("join-room", { code: roomRef.current, device: currentDevice() });
+        try {
+            await ensureDeviceRegistered();
+            PeerManager.initialize(roomRef.current);
+            socket.emit("join-room", { code: roomRef.current, device: currentDevice() });
+        } catch {
+            setJoinError("No se pudo conectar con Droply. Inténtalo nuevamente.");
+        }
 
     }}
 >

@@ -11,14 +11,16 @@ export default function registerConnectionEvents(
         id: socket.id
     });
 
-    socket.on("register-device", (deviceId: string) => {
+    socket.on("register-device", (deviceId: string, acknowledge?: (result: { ok: boolean }) => void) => {
 
         if (!isSafeId(deviceId)) {
             socket.emit("security-error", "Identificador de dispositivo invalido");
+            acknowledge?.({ ok: false });
             return;
         }
 
         DeviceManager.register(deviceId, socket.id);
+        acknowledge?.({ ok: true });
 
         console.log(
             "🖥️ Dispositivo registrado:",
