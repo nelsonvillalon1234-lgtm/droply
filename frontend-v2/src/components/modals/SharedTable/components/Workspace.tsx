@@ -12,6 +12,9 @@ import TableItem from "./TableItem";
 import SharedYouTube from "./SharedYouTube";
 import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem as TableItemType, TransferPhase } from "../types";
 import deviceId from "../../../../services/device";
+import type { PersistedFileHandle } from "../../../../services/fileSourceStore";
+
+type FilePickerWindow = Window & { showOpenFilePicker?: () => Promise<PersistedFileHandle[]> };
 
 type Props = {
     hasRoom: boolean; creatingRoom: boolean; roomCode: string; devices: DeviceType[];
@@ -19,9 +22,11 @@ type Props = {
     downloadProgress: number; downloadComplete: boolean; downloadPhase: TransferPhase; messages: ChatMessage[];
     onCancelDownload: () => void;
     onMoveItem: (item: TableItemType, x: number, y: number, parentId?: string | null) => void;
-    onCreateRoom: () => void; onJoinRoom: (code: string) => void; onAddFile: (file: File, x: number, y: number, parentId?: string | null) => void;
+    onCreateRoom: () => void; onJoinRoom: (code: string) => void; onAddFile: (file: File, x: number, y: number, parentId?: string | null, handle?: PersistedFileHandle | null) => void;
     onDownload: (item: TableItemType) => void; onSendMessage: (text: string) => void;
-    onRelinkFile: (item: TableItemType, file: File) => void;
+    onRelinkFile: (item: TableItemType, file: File, handle?: PersistedFileHandle | null) => void;
+    hasSourcesToRestore: boolean;
+    onRestoreSources: () => void;
     onCreateWorkspaceItem: (type: "folder" | "note", name: string, x: number, y: number, content?: string, parentId?: string | null) => void;
     activity: ActivityItem[]; canUndo: boolean; onUndo: () => void;
     onRenameItem: (item: TableItemType, name: string) => void;
@@ -58,7 +63,7 @@ export default function Workspace(props: Props) {
         activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect, recentRooms,
         sharedMedia, onCreateMedia, onMediaControl, onMediaMove, onMediaRemove,
         canChooseDownloadFolder, downloadFolderName, showDownloadFolderPrompt,
-        onChooseDownloadFolder, onDismissDownloadFolder } = props;
+        onChooseDownloadFolder, onDismissDownloadFolder, hasSourcesToRestore, onRestoreSources } = props;
     const viewportRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const relinkInputRef = useRef<HTMLInputElement>(null);
@@ -259,17 +264,50 @@ export default function Workspace(props: Props) {
         setContextMenu(null);
     }
 
-    function chooseWorkspaceFile() {
+    async function chooseFileWithHandle() {
+        const picker = (window as FilePickerWindow).showOpenFilePicker;
+        if (!picker) return null;
+        try {
+            const [handle] = await picker();
+            return handle ? { handle, file: await handle.getFile() } : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async function chooseWorkspaceFile() {
         if (!contextMenu) return;
         filePlacementRef.current = { x: contextMenu.x, y: contextMenu.y };
         setContextMenu(null);
+        const selected = await chooseFileWithHandle();
+        if (selected) {
+            onAddFile(selected.file, contextMenu.x, contextMenu.y, currentFolder, selected.handle);
+            filePlacementRef.current = null;
+            return;
+        }
+        if ((window as FilePickerWindow).showOpenFilePicker) return;
         fileInputRef.current?.click();
     }
 
-    function chooseFolderFile() {
+    async function chooseFolderFile() {
         if (!folder) return;
         filePlacementRef.current = { x: 120, y: 120 };
+        const selected = await chooseFileWithHandle();
+        if (selected) {
+            onAddFile(selected.file, 120, 120, currentFolder, selected.handle);
+            filePlacementRef.current = null;
+            return;
+        }
+        if ((window as FilePickerWindow).showOpenFilePicker) return;
         fileInputRef.current?.click();
+    }
+
+    async function chooseRelinkFile(item: TableItemType) {
+        const selected = await chooseFileWithHandle();
+        if (selected) return onRelinkFile(item, selected.file, selected.handle);
+        if ((window as FilePickerWindow).showOpenFilePicker) return;
+        relinkItemRef.current = item;
+        relinkInputRef.current?.click();
     }
 
     function confirmCreator() {
@@ -331,6 +369,7 @@ export default function Workspace(props: Props) {
                     <button className={view==="shared"?"is-active":""} onClick={()=>setView("shared")}><Users size={17}/>Compartidos</button>
                     <button className={view==="activity"?"is-active":""} onClick={()=>setView("activity")}><Activity size={17}/>Actividad</button>
                     <button className={view==="trash"?"is-active":""} onClick={()=>setView("trash")}><Trash2 size={17}/>Papelera</button>
+                    {hasSourcesToRestore&&<button onClick={onRestoreSources}><RotateCcw size={17}/>Restaurar archivos</button>}
                     <button className="workspace-disconnect" onClick={onDisconnect}><LogOut size={17}/>Desconectar</button>
                 </nav>
                 {canChooseDownloadFolder && showDownloadFolderPrompt && <div className="download-destination-card">
@@ -365,7 +404,7 @@ export default function Workspace(props: Props) {
                     {(view==="files"||view==="folders"||view==="shared")&&displayedItems.map(item => { const boundedItem={...item,...clampWorldPoint(item)}; return <TableItem key={item.id} item={boundedItem} scale={camera.zoom} onDownload={onDownload} onMove={moveItem}
                         onOpenFolder={id => setCurrentFolder(id)} onCancelDownload={onCancelDownload}
                         selected={selectedId===item.id} onSelect={entry=>setSelectedId(entry.id)} onDelete={onDeleteItem} onRename={onRenameItem}
-                        canRelink={item.type==="file"&&item.ownerId===deviceId&&!item.available} onRelink={entry=>{relinkItemRef.current=entry;relinkInputRef.current?.click();}}
+                        canRelink={item.type==="file"&&item.ownerId===deviceId&&!item.available} onRelink={chooseRelinkFile}
                         downloadProgress={downloadItemId===item.id ? downloadProgress : undefined}
                         transferPhase={downloadItemId===item.id ? downloadPhase : "idle"}
                         downloadComplete={downloadItemId===item.id && downloadComplete}/>}) }

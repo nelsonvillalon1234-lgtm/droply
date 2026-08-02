@@ -16,6 +16,7 @@ import Workspace from "./components/Workspace";
 import { useRef } from "react";
 import PeerManager from "../../../core/PeerManager";
 import type { RecentRoom } from "./components/CenterAction";
+import { getFileHandle, saveFileHandle, type PersistedFileHandle } from "../../../services/fileSourceStore";
 
 const RECENT_TABLES_KEY = "droply-recent-tables";
 const RECENT_TABLE_TTL = 24 * 60 * 60 * 1000;
@@ -117,6 +118,7 @@ const [devices, setDevices] = useState<DeviceType[]>([
 const files = useRef(new Map<string, File>());
 
 const [items, setItems] = useState<TableItem[]>([]);
+const [hasSourcesToRestore, setHasSourcesToRestore] = useState(false);
 const [messages, setMessages] = useState<ChatMessage[]>([]);
 const [activity, setActivity] = useState<ActivityItem[]>([]);
 const [sharedMedia, setSharedMedia] = useState<SharedMedia | null>(null);
@@ -263,7 +265,7 @@ function handleLeaveTable() {
     handleCloseTable();
 }
 
-function addTableItem(file: File, x: number, y: number, parentId: string | null = null) {
+function addTableItem(file: File, x: number, y: number, parentId: string | null = null, handle: PersistedFileHandle | null = null) {
 
     const item: TableItem = {
 
@@ -289,6 +291,7 @@ function addTableItem(file: File, x: number, y: number, parentId: string | null 
 
     };
     files.current.set(item.id, file);
+    if (handle) void saveFileHandle(item.id, handle);
 
     console.log("👤 Owner:", deviceId);
 
@@ -348,16 +351,53 @@ function handleSendMessage(text: string) {
     socket.emit("chat-message", message);
 }
 
-function handleRelinkFile(item: TableItem, file: File) {
+function handleRelinkFile(item: TableItem, file: File, handle: PersistedFileHandle | null = null) {
     if (file.name !== item.name || file.size !== item.size) {
         window.dispatchEvent(new CustomEvent("droply-toast", { detail: "Selecciona el mismo archivo: el nombre y el tamaño deben coincidir." }));
         return;
     }
     files.current.set(item.id, file);
+    if (handle) void saveFileHandle(item.id, handle);
     const updated = { ...item, available: true };
     setItems(current => current.map(entry => entry.id === item.id ? updated : entry));
     socket.emit("table-item-updated", updated);
     window.dispatchEvent(new CustomEvent("droply-toast", { detail: `${item.name} vuelve a estar disponible.` }));
+}
+
+async function restoreOwnedSources(roomItems: TableItem[], requestPermission = false) {
+    let needsPermission = false;
+    let restoredCount = 0;
+    for (const item of roomItems) {
+        if (item.type !== "file" || item.ownerId !== deviceId || files.current.has(item.id)) continue;
+        try {
+            const handle = await getFileHandle(item.id);
+            if (!handle) continue;
+            let permission = await handle.queryPermission({ mode: "read" });
+            if (permission === "prompt" && requestPermission) permission = await handle.requestPermission({ mode: "read" });
+            if (permission !== "granted") { needsPermission = true; continue; }
+            const source = await handle.getFile();
+            if (source.name !== item.name || source.size !== item.size) continue;
+            files.current.set(item.id, source);
+            restoredCount += 1;
+        } catch {
+            // A moved or deleted source remains available for manual relinking.
+        }
+    }
+    const normalized = roomItems.map(item => item.type === "file" && item.ownerId === deviceId
+        ? { ...item, available: files.current.has(item.id) }
+        : item);
+    setItems(normalized);
+    setHasSourcesToRestore(needsPermission);
+    normalized.forEach(item => {
+        if (item.type === "file" && item.ownerId === deviceId) socket.emit("table-item-updated", item);
+    });
+    if (requestPermission && restoredCount) {
+        window.dispatchEvent(new CustomEvent("droply-toast", { detail: `${restoredCount} archivo${restoredCount === 1 ? " restaurado" : "s restaurados"}.` }));
+    }
+}
+
+function handleRestoreSources() {
+    void restoreOwnedSources(items, true);
 }
 
 function handleCreateMedia(url: string, x: number, y: number) {
@@ -571,17 +611,7 @@ function handleDownload(item: TableItem) {
         knownDevicesRef.current = roomDevices;
         setDevices(roomDevices);
     });
-    socket.on("room-items", (roomItems: TableItem[]) => {
-        const normalized = roomItems.map(item => item.type === "file" && item.ownerId === deviceId && !files.current.has(item.id)
-            ? { ...item, available: false }
-            : item);
-        setItems(normalized);
-        normalized.forEach(item => {
-            if (item.type === "file" && item.ownerId === deviceId && !item.available) {
-                socket.emit("table-item-updated", item);
-            }
-        });
-    });
+    socket.on("room-items", (roomItems: TableItem[]) => { void restoreOwnedSources(roomItems); });
     socket.on("room-media", (media: SharedMedia | null) => setSharedMedia(media));
 
 socket.on("table-item-added", (item: TableItem) => {
@@ -945,6 +975,8 @@ useEffect(() => {
     onAddFile={addTableItem}
     onDownload={handleDownload}
     onRelinkFile={handleRelinkFile}
+    hasSourcesToRestore={hasSourcesToRestore}
+    onRestoreSources={handleRestoreSources}
     onMoveItem={handleMoveItem}
     onCancelDownload={handleCancelDownload}
     messages={messages}
