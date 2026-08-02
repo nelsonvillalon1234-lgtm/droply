@@ -21,6 +21,7 @@ type Props = {
     onMoveItem: (item: TableItemType, x: number, y: number, parentId?: string | null) => void;
     onCreateRoom: () => void; onJoinRoom: (code: string) => void; onAddFile: (file: File, x: number, y: number, parentId?: string | null) => void;
     onDownload: (item: TableItemType) => void; onSendMessage: (text: string) => void;
+    onRelinkFile: (item: TableItemType, file: File) => void;
     onCreateWorkspaceItem: (type: "folder" | "note", name: string, x: number, y: number, content?: string, parentId?: string | null) => void;
     activity: ActivityItem[]; canUndo: boolean; onUndo: () => void;
     onRenameItem: (item: TableItemType, name: string) => void;
@@ -52,7 +53,7 @@ const MINIMAP_HEIGHT = 132;
 
 export default function Workspace(props: Props) {
     const { hasRoom, creatingRoom, roomCode, showMenu, devices, items, downloadItemId,
-        downloadProgress, downloadComplete, downloadPhase, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload,
+        downloadProgress, downloadComplete, downloadPhase, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload, onRelinkFile,
         onMoveItem, onCancelDownload, onSendMessage, onCreateWorkspaceItem,
         activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect, recentRooms,
         sharedMedia, onCreateMedia, onMediaControl, onMediaMove, onMediaRemove,
@@ -60,6 +61,8 @@ export default function Workspace(props: Props) {
         onChooseDownloadFolder, onDismissDownloadFolder } = props;
     const viewportRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const relinkInputRef = useRef<HTMLInputElement>(null);
+    const relinkItemRef = useRef<TableItemType | null>(null);
     const filePlacementRef = useRef<{ x: number; y: number } | null>(null);
     const panRef = useRef<{ x: number; y: number; cameraX: number; cameraY: number } | null>(null);
     const pinchRef = useRef<{ distance: number; zoom: number; worldX: number; worldY: number } | null>(null);
@@ -362,6 +365,7 @@ export default function Workspace(props: Props) {
                     {(view==="files"||view==="folders"||view==="shared")&&displayedItems.map(item => { const boundedItem={...item,...clampWorldPoint(item)}; return <TableItem key={item.id} item={boundedItem} scale={camera.zoom} onDownload={onDownload} onMove={moveItem}
                         onOpenFolder={id => setCurrentFolder(id)} onCancelDownload={onCancelDownload}
                         selected={selectedId===item.id} onSelect={entry=>setSelectedId(entry.id)} onDelete={onDeleteItem} onRename={onRenameItem}
+                        canRelink={item.type==="file"&&item.ownerId===deviceId&&!item.available} onRelink={entry=>{relinkItemRef.current=entry;relinkInputRef.current?.click();}}
                         downloadProgress={downloadItemId===item.id ? downloadProgress : undefined}
                         transferPhase={downloadItemId===item.id ? downloadPhase : "idle"}
                         downloadComplete={downloadItemId===item.id && downloadComplete}/>}) }
@@ -390,6 +394,7 @@ export default function Workspace(props: Props) {
                 </div>
             </div>
             <input ref={fileInputRef} className="workspace-file-input" type="file" onChange={event=>{const file=event.target.files?.[0];const placement=filePlacementRef.current;if(file&&placement)onAddFile(file,placement.x,placement.y,currentFolder);filePlacementRef.current=null;event.currentTarget.value="";setContextMenu(null);}} />
+            <input ref={relinkInputRef} className="workspace-file-input" type="file" onChange={event=>{const file=event.target.files?.[0];const item=relinkItemRef.current;if(file&&item)onRelinkFile(item,file);relinkItemRef.current=null;event.currentTarget.value="";}} />
             {contextMenu && <div className="workspace-context-menu" style={{left:Math.max(8,Math.min(contextMenu.clientX,window.innerWidth-232)),top:Math.max(8,Math.min(contextMenu.clientY,window.innerHeight-205))}} onClick={e=>e.stopPropagation()}><button onClick={chooseWorkspaceFile}><Upload size={18}/>Agregar archivo</button><button onClick={()=>openCreator("folder")}><FolderPlus size={18}/>Nueva carpeta</button><button onClick={()=>openCreator("note")}><FilePlus2 size={18}/>Nueva nota de texto</button><button onClick={()=>openCreator("youtube")}><ExternalLink size={18}/>Video de YouTube</button></div>}
             {creator && <div className="workspace-creator-backdrop" onPointerDown={()=>setCreator(null)}><form className="workspace-creator" onSubmit={e=>{e.preventDefault();confirmCreator();}} onPointerDown={e=>e.stopPropagation()}><label>{creator.type==="folder"?"Nombre de la carpeta":creator.type==="youtube"?"Enlace de YouTube":"Escribe tu nota"}</label>{creator.type==="folder"||creator.type==="youtube"?<input type={creator.type==="youtube"?"url":"text"} placeholder={creator.type==="youtube"?"https://youtube.com/watch?v=...":""} autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)} onFocus={e=>e.currentTarget.select()}/>:<textarea autoFocus value={creatorValue} onChange={e=>setCreatorValue(e.target.value)}/>}<div><button type="button" onClick={()=>setCreator(null)}>Cancelar</button><button type="submit">{creator.type==="youtube"?"Agregar":"Crear"}</button></div></form></div>}
 

@@ -14,6 +14,7 @@ import {
     Pencil,
     StickyNote,
     Trash2,
+    RefreshCw,
     X
 } from "lucide-react";
 
@@ -45,6 +46,8 @@ selected?: boolean;
 onSelect: (item: TableItemType) => void;
 onDelete: (item: TableItemType) => void;
 onRename: (item: TableItemType, name: string) => void;
+canRelink?: boolean;
+onRelink: (item: TableItemType) => void;
 };
 
 
@@ -69,6 +72,8 @@ export default function TableItem({
     onSelect,
     onDelete,
     onRename,
+    canRelink = false,
+    onRelink,
 
 }: Props) {
 
@@ -283,12 +288,14 @@ setDragPosition({
     }}
     onDoubleClick={() => {
         if (item.type === "folder") onOpenFolder(item.id);
-        else onDownload(item);
+        else if (item.available) onDownload(item);
+        else if (canRelink) onRelink(item);
     }}
 >
 
             {selected && <div className="table-item-actions" onPointerDown={event => event.stopPropagation()}>
-                {item.type === "file" && <button title="Descargar" onClick={event => { event.stopPropagation(); onDownload(item); }}><Download size={14}/></button>}
+                {item.type === "file" && item.available && <button title="Descargar" onClick={event => { event.stopPropagation(); onDownload(item); }}><Download size={14}/></button>}
+                {canRelink && <button title="Volver a vincular el archivo" onClick={event => { event.stopPropagation(); onRelink(item); }}><RefreshCw size={14}/></button>}
                 <button title="Renombrar" onClick={event => { event.stopPropagation(); setEditing(true); }}><Pencil size={14}/></button>
                 <button title="Mover a la papelera" onClick={event => { event.stopPropagation(); onDelete(item); }}><Trash2 size={14}/></button>
             </div>}
@@ -383,6 +390,12 @@ setDragPosition({
     </span>
 
 </div>
+
+            {item.type === "file" && !item.available && (
+                <small className="table-item-state unavailable">
+                    {canRelink ? "Vuelve a vincularlo" : "Fuente no disponible"}
+                </small>
+            )}
 
             {downloading && (
 

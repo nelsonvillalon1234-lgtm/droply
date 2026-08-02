@@ -348,6 +348,18 @@ function handleSendMessage(text: string) {
     socket.emit("chat-message", message);
 }
 
+function handleRelinkFile(item: TableItem, file: File) {
+    if (file.name !== item.name || file.size !== item.size) {
+        window.dispatchEvent(new CustomEvent("droply-toast", { detail: "Selecciona el mismo archivo: el nombre y el tamaño deben coincidir." }));
+        return;
+    }
+    files.current.set(item.id, file);
+    const updated = { ...item, available: true };
+    setItems(current => current.map(entry => entry.id === item.id ? updated : entry));
+    socket.emit("table-item-updated", updated);
+    window.dispatchEvent(new CustomEvent("droply-toast", { detail: `${item.name} vuelve a estar disponible.` }));
+}
+
 function handleCreateMedia(url: string, x: number, y: number) {
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/i);
     if (!match) return window.dispatchEvent(new CustomEvent("droply-toast", { detail: "Ese enlace de YouTube no es válido." }));
@@ -559,7 +571,17 @@ function handleDownload(item: TableItem) {
         knownDevicesRef.current = roomDevices;
         setDevices(roomDevices);
     });
-    socket.on("room-items", (roomItems: TableItem[]) => setItems(roomItems));
+    socket.on("room-items", (roomItems: TableItem[]) => {
+        const normalized = roomItems.map(item => item.type === "file" && item.ownerId === deviceId && !files.current.has(item.id)
+            ? { ...item, available: false }
+            : item);
+        setItems(normalized);
+        normalized.forEach(item => {
+            if (item.type === "file" && item.ownerId === deviceId && !item.available) {
+                socket.emit("table-item-updated", item);
+            }
+        });
+    });
     socket.on("room-media", (media: SharedMedia | null) => setSharedMedia(media));
 
 socket.on("table-item-added", (item: TableItem) => {
@@ -644,7 +666,16 @@ socket.on(
 
         const file = files.current.get(itemId);
 
-        if (!file) return;
+        if (!file) {
+            setItems(current => current.map(item => {
+                if (item.id !== itemId) return item;
+                const updated = { ...item, available: false };
+                socket.emit("table-item-updated", updated);
+                return updated;
+            }));
+            socket.emit("download-source-missing", { itemId, requesterSocketId });
+            return;
+        }
 
         PeerManager.reset();
         activeTransferItemRef.current = itemId;
@@ -715,7 +746,7 @@ socket.on("download-ice-candidate", async ({ itemId, candidate }: { itemId: stri
 
 });
 
-socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
+socket.on("download-unavailable", ({ itemId, reason }: { itemId: string; reason?: string }) => {
     if (downloadingItemRef.current !== itemId) return;
     PeerManager.reset();
     downloadingItemRef.current = null;
@@ -724,7 +755,7 @@ socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
     setDownloadProgress(0);
     setDownloadComplete(false);
     setDownloadPhase("idle");
-    window.dispatchEvent(new CustomEvent("droply-toast", { detail: "El dispositivo que tiene este archivo esta desconectado." }));
+    window.dispatchEvent(new CustomEvent("droply-toast", { detail: reason === "source-missing" ? "El propietario debe volver a vincular este archivo." : "El dispositivo que tiene este archivo está desconectado." }));
 });
 
     if (socket.connected && roomRef.current) void restoreRoom();
@@ -913,6 +944,7 @@ useEffect(() => {
     onJoinRoom={handleJoinRoom}
     onAddFile={addTableItem}
     onDownload={handleDownload}
+    onRelinkFile={handleRelinkFile}
     onMoveItem={handleMoveItem}
     onCancelDownload={handleCancelDownload}
     messages={messages}

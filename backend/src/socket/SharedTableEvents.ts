@@ -102,4 +102,19 @@ export default function registerSharedTableEvents(
     }
 );
 
+    socket.on("download-source-missing", (payload: unknown) => {
+        if (!payload || typeof payload !== "object") return;
+        const { itemId, requesterSocketId } = payload as Record<string, unknown>;
+        if (!isSafeId(itemId) || !isSafeId(requesterSocketId)) return;
+
+        const requester = io.sockets.sockets.get(requesterSocketId as string);
+        const room = socket.data.roomCode as string | undefined;
+        if (!room || requester?.data.roomCode !== room) return;
+
+        io.to(requesterSocketId as string).emit("download-unavailable", {
+            itemId,
+            reason: "source-missing",
+        });
+    });
+
 }
