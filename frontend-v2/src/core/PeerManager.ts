@@ -465,8 +465,18 @@ this.channel.onclose = () => {
 
     async setRemoteDescription(description: RTCSessionDescriptionInit) {
 
-    if (!this.peer)
-        return;
+        if (!this.peer)
+            return false;
+
+        if (description.type === "answer" && this.peer.signalingState !== "have-local-offer") {
+            console.log("Respuesta WebRTC duplicada ignorada");
+            return false;
+        }
+
+        if (description.type === "offer" && this.peer.signalingState !== "stable") {
+            console.log("Oferta WebRTC duplicada ignorada");
+            return false;
+        }
 
     console.log("📥 RemoteDescription");
 
@@ -476,6 +486,8 @@ this.channel.onclose = () => {
         for (const candidate of candidates) {
             await this.peer.addIceCandidate(candidate);
         }
+
+        return true;
 
 }
 

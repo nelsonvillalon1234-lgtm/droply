@@ -90,6 +90,8 @@ PeerManager.setOnReceiveProgress((value) => {
 
         const handleRoomCreated = (code: string) => {
 
+            if (roomRef.current) return;
+
             console.log("✅ Sala creada:", code);
 
             roomRef.current = code;
@@ -155,9 +157,11 @@ PeerManager.setOnReceiveProgress((value) => {
 
             console.log("📨 Offer");
 
-            await PeerManager.setRemoteDescription(
+            const applied = await PeerManager.setRemoteDescription(
                 offer
             );
+
+            if (!applied) return;
 
             const answer =
                 await PeerManager.createAnswer();
