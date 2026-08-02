@@ -18,6 +18,7 @@ class PeerManager {
     private channel: RTCDataChannel | null = null;
     private room = "";
     private isOpen = false;
+    private pendingIceCandidates: RTCIceCandidateInit[] = [];
     private onReceiveProgressCallback?: (progress: number) => void;
     private onProgressCallback?: (progress: number) => void;
     private onSpeedCallback?: (speed: string) => void;
@@ -31,6 +32,7 @@ private iceConfigurationReady: Promise<void> = Promise.resolve();
 
     initialize(room: string) {
 
+        if (this.peer && this.room !== room) this.reset();
         this.room = room;
 
         if (this.peer)
@@ -468,7 +470,12 @@ this.channel.onclose = () => {
 
     console.log("📥 RemoteDescription");
 
-    await this.peer.setRemoteDescription(description);
+        await this.peer.setRemoteDescription(description);
+
+        const candidates = this.pendingIceCandidates.splice(0);
+        for (const candidate of candidates) {
+            await this.peer.addIceCandidate(candidate);
+        }
 
 }
 
@@ -477,8 +484,25 @@ this.channel.onclose = () => {
         if (!this.peer)
             return;
 
+        if (!this.peer.remoteDescription) {
+            this.pendingIceCandidates.push(candidate);
+            return;
+        }
+
         await this.peer.addIceCandidate(candidate);
 
+    }
+
+    reset() {
+        this.transferVersion += 1;
+        this.channel?.close();
+        this.peer?.close();
+        this.channel = null;
+        this.peer = null;
+        this.room = "";
+        this.isOpen = false;
+        this.pendingIceCandidates = [];
+        this.iceConfigurationReady = Promise.resolve();
     }
 
     send(message: string) {

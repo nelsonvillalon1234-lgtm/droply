@@ -54,6 +54,7 @@ export default function TransferModal({
 
         if (!isOpen) return;
 
+        PeerManager.reset();
         setConnected(false);
         setIntegrityError("");
         setJoinError("");
@@ -274,6 +275,7 @@ PeerManager.setOnReceiveProgress((value) => {
         return () => {
 
             cancelled = true;
+            PeerManager.reset();
 
             socket.off(
                 "room-created",
