@@ -697,12 +697,6 @@ socket.on(
         const file = files.current.get(itemId);
 
         if (!file) {
-            setItems(current => current.map(item => {
-                if (item.id !== itemId) return item;
-                const updated = { ...item, available: false };
-                socket.emit("table-item-updated", updated);
-                return updated;
-            }));
             socket.emit("download-source-missing", { itemId, requesterSocketId });
             return;
         }
@@ -855,9 +849,11 @@ useEffect(() => {
             event as CustomEvent<{
                 url: string;
                 name: string;
+                blob: Blob;
             }>;
 
-        if (!downloadingItemRef.current)
+        const completedItemId = downloadingItemRef.current;
+        if (!completedItemId)
             return;
 
         setDownloadProgress(100);
@@ -866,6 +862,12 @@ useEffect(() => {
         activeTransferItemRef.current = null;
 
         await saveReceivedFile(fileEvent.detail.url, fileEvent.detail.name);
+
+        files.current.set(completedItemId, new File([fileEvent.detail.blob], fileEvent.detail.name, {
+            type: fileEvent.detail.blob.type || "application/octet-stream",
+            lastModified: Date.now(),
+        }));
+        socket.emit("download-source-added", { itemId: completedItemId });
 
         setDownloadComplete(true);
         setDownloadPhase("complete");

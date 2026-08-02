@@ -379,7 +379,9 @@ this.channel.onmessage = ({ data }) => {
 
                     url,
 
-                    name: completedName
+                    name: completedName,
+
+                    blob
 
                 }
 
