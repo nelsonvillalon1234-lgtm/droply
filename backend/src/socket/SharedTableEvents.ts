@@ -72,6 +72,8 @@ export default function registerSharedTableEvents(
 
         if (!socketId) {
 
+            socket.emit("download-unavailable", { itemId, reason: "owner-offline" });
+
             console.log("❌ Propietario no conectado");
 
             return;
@@ -80,7 +82,10 @@ export default function registerSharedTableEvents(
 
         const ownerSocket = io.sockets.sockets.get(socketId);
         const requesterRoom = socket.data.roomCode as string | undefined;
-        if (!requesterRoom || ownerSocket?.data.roomCode !== requesterRoom) return;
+        if (!requesterRoom || ownerSocket?.data.roomCode !== requesterRoom) {
+            socket.emit("download-unavailable", { itemId, reason: "owner-offline" });
+            return;
+        }
 
         io.to(socketId).emit(
             "download-request",

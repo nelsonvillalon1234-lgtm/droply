@@ -66,6 +66,9 @@ const [
 const downloadingItemRef =
     useRef<string | null>(null);
 
+const activeTransferItemRef =
+    useRef<string | null>(null);
+
 const [devices, setDevices] = useState<DeviceType[]>([
     {
         id: deviceId,
@@ -261,6 +264,8 @@ function handleCancelDownload() {
 
     downloadingItemRef.current = null;
 
+    activeTransferItemRef.current = null;
+
     setDownloadItemId(null);
 
     setDownloadProgress(0);
@@ -285,6 +290,8 @@ function handleDownload(item: TableItem) {
     }
 
     downloadingItemRef.current = item.id;
+
+    activeTransferItemRef.current = item.id;
 
     setDownloadItemId(item.id);
 
@@ -419,11 +426,14 @@ socket.on("room-full", () => {
 
 socket.on(
     "download-request",
-    async ({ itemId }) => {
+    async ({ itemId, requesterSocketId }: { itemId: string; requesterSocketId: string }) => {
 
         const file = files.current.get(itemId);
 
         if (!file) return;
+
+        PeerManager.reset();
+        activeTransferItemRef.current = itemId;
 
         console.log("🚀 Iniciando envío:", file.name);
 
@@ -433,46 +443,71 @@ socket.on(
 
         PeerManager.initialize(roomRef.current);
 
+        PeerManager.setDownloadSignalTarget(requesterSocketId, itemId);
+
         PeerManager.createChannel();
 
         const offer = await PeerManager.createOffer();
 
         if (!offer) return;
 
-        socket.emit("offer", {
-             room: roomRef.current,
+        socket.emit("download-offer", {
+             targetSocketId: requesterSocketId,
+             itemId,
              offer,
         });
 
     }
 );
-socket.on("offer", async (offer) => {
+socket.on("download-offer", async ({ itemId, offer, sourceSocketId }: { itemId: string; offer: RTCSessionDescriptionInit; sourceSocketId: string }) => {
+
+    if (downloadingItemRef.current !== itemId) return;
 
     console.log("📨 OFFER recibido");
 
+    PeerManager.reset();
+    activeTransferItemRef.current = itemId;
     PeerManager.initialize(roomRef.current);
+    PeerManager.setDownloadSignalTarget(sourceSocketId, itemId);
 
-    await PeerManager.setRemoteDescription(offer);
+    const applied = await PeerManager.setRemoteDescription(offer);
+
+    if (!applied) return;
 
     const answer = await PeerManager.createAnswer();
 
-    socket.emit("answer", {
-        room: roomRef.current,
+    socket.emit("download-answer", {
+        targetSocketId: sourceSocketId,
+        itemId,
         answer,
     });
 
 });
-socket.on("answer", async (answer) => {
+socket.on("download-answer", async ({ itemId, answer }: { itemId: string; answer: RTCSessionDescriptionInit }) => {
+
+    if (activeTransferItemRef.current !== itemId) return;
 
     console.log("📥 ANSWER recibido");
 
     await PeerManager.setRemoteDescription(answer);
 
 });
-socket.on("ice-candidate", async (candidate) => {
+socket.on("download-ice-candidate", async ({ itemId, candidate }: { itemId: string; candidate: RTCIceCandidateInit }) => {
+
+    if (activeTransferItemRef.current !== itemId) return;
 
     await PeerManager.addIceCandidate(candidate);
 
+});
+
+socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
+    if (downloadingItemRef.current !== itemId) return;
+    downloadingItemRef.current = null;
+    activeTransferItemRef.current = null;
+    setDownloadItemId(null);
+    setDownloadProgress(0);
+    setDownloadComplete(false);
+    window.dispatchEvent(new CustomEvent("droply-toast", { detail: "El dispositivo que tiene este archivo esta desconectado." }));
 });
 
     return () => {
@@ -500,11 +535,13 @@ socket.on("ice-candidate", async (candidate) => {
 
         socket.off("download-request");
 
-        socket.off("offer");
+        socket.off("download-offer");
 
-        socket.off("answer");
+        socket.off("download-answer");
 
-        socket.off("ice-candidate");
+        socket.off("download-ice-candidate");
+
+        socket.off("download-unavailable");
 
     };
 
@@ -541,6 +578,8 @@ useEffect(() => {
 
         setDownloadComplete(true);
 
+        activeTransferItemRef.current = null;
+
         const link =
             document.createElement("a");
 
@@ -569,6 +608,7 @@ useEffect(() => {
     function handleIntegrityError(event: Event) {
         const fileEvent = event as CustomEvent<{ name?: string }>;
         downloadingItemRef.current = null;
+        activeTransferItemRef.current = null;
         setDownloadItemId(null);
         setDownloadProgress(0);
         setDownloadComplete(false);

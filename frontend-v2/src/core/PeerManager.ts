@@ -20,6 +20,8 @@ class PeerManager {
     private isOpen = false;
     private isSending = false;
     private isApplyingRemoteDescription = false;
+    private signalTargetSocketId = "";
+    private signalItemId = "";
     private pendingIceCandidates: RTCIceCandidateInit[] = [];
     private onReceiveProgressCallback?: (progress: number) => void;
     private onProgressCallback?: (progress: number) => void;
@@ -145,10 +147,18 @@ this.peer.onicegatheringstatechange = () => {
     if (!candidate)
         return;
 
-    socket.emit("ice-candidate", {
-        room: this.room,
-        candidate
-    });
+    if (this.signalTargetSocketId && this.signalItemId) {
+        socket.emit("download-ice-candidate", {
+            targetSocketId: this.signalTargetSocketId,
+            itemId: this.signalItemId,
+            candidate,
+        });
+    } else {
+        socket.emit("ice-candidate", {
+            room: this.room,
+            candidate
+        });
+    }
 
 };
 this.peer.onconnectionstatechange = async () => {
@@ -530,8 +540,15 @@ this.channel.onclose = () => {
         this.isOpen = false;
         this.isSending = false;
         this.isApplyingRemoteDescription = false;
+        this.signalTargetSocketId = "";
+        this.signalItemId = "";
         this.pendingIceCandidates = [];
         this.iceConfigurationReady = Promise.resolve();
+    }
+
+    setDownloadSignalTarget(targetSocketId: string, itemId: string) {
+        this.signalTargetSocketId = targetSocketId;
+        this.signalItemId = itemId;
     }
 
     send(message: string) {
