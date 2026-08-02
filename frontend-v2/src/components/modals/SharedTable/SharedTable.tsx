@@ -20,6 +20,17 @@ import type { RecentRoom } from "./components/CenterAction";
 const RECENT_TABLES_KEY = "droply-recent-tables";
 const RECENT_TABLE_TTL = 24 * 60 * 60 * 1000;
 
+type WritableFileHandle = {
+    createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }>;
+};
+type DownloadDirectoryHandle = {
+    name: string;
+    getFileHandle: (name: string, options: { create: true }) => Promise<WritableFileHandle>;
+};
+type DirectoryPickerWindow = Window & {
+    showDirectoryPicker?: (options?: { mode?: "readwrite" }) => Promise<DownloadDirectoryHandle>;
+};
+
 function readRecentRooms(): RecentRoom[] {
     try {
         const parsed = JSON.parse(localStorage.getItem(RECENT_TABLES_KEY) ?? "[]") as RecentRoom[];
@@ -64,6 +75,10 @@ export default function SharedTable({
     const [showMenu, setShowMenu] = useState(true);
     const [socketConnected, setSocketConnected] = useState(socket.connected);
     const [recentRooms, setRecentRooms] = useState<RecentRoom[]>(readRecentRooms);
+    const [downloadFolderName, setDownloadFolderName] = useState<string | null>(null);
+    const [showDownloadFolderPrompt, setShowDownloadFolderPrompt] = useState(true);
+    const downloadDirectoryRef = useRef<DownloadDirectoryHandle | null>(null);
+    const canChooseDownloadFolder = typeof (window as DirectoryPickerWindow).showDirectoryPicker === "function";
 
     const roomRef = useRef(sessionStorage.getItem("droply-active-table") ?? "");
     const reconnectPendingRef = useRef(Boolean(roomRef.current));
@@ -106,6 +121,52 @@ const [activity, setActivity] = useState<ActivityItem[]>([]);
 const [sharedMedia, setSharedMedia] = useState<SharedMedia | null>(null);
 const undoRef = useRef<TableItem | null>(null);
 const knownDevicesRef = useRef<DeviceType[]>([]);
+
+async function chooseDownloadFolder() {
+    try {
+        const picker = (window as DirectoryPickerWindow).showDirectoryPicker;
+        if (!picker) return;
+        const directory = await picker({ mode: "readwrite" });
+        downloadDirectoryRef.current = directory;
+        setDownloadFolderName(directory.name);
+        setShowDownloadFolderPrompt(true);
+        window.dispatchEvent(new CustomEvent("droply-toast", { detail: `Las descargas se guardarán en ${directory.name}` }));
+    } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        window.dispatchEvent(new CustomEvent("droply-toast", { detail: "No pudimos usar esa carpeta. Las descargas seguirán funcionando normalmente." }));
+    }
+}
+
+function downloadWithBrowser(url: string, name: string) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+}
+
+async function saveReceivedFile(url: string, name: string) {
+    const directory = downloadDirectoryRef.current;
+    if (!directory) {
+        downloadWithBrowser(url, name);
+        return;
+    }
+    const safeName = name.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_") || "archivo";
+    try {
+        const blob = await fetch(url).then(response => response.blob());
+        const fileHandle = await directory.getFileHandle(safeName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        window.dispatchEvent(new CustomEvent("droply-toast", { detail: `Guardado en ${directory.name}` }));
+    } catch {
+        downloadDirectoryRef.current = null;
+        setDownloadFolderName(null);
+        downloadWithBrowser(url, name);
+        window.dispatchEvent(new CustomEvent("droply-toast", { detail: "La carpeta ya no estaba disponible. Guardamos el archivo en Descargas." }));
+    }
+}
 
 function rememberRoom(code: string) {
     const now = Date.now();
@@ -711,7 +772,7 @@ useEffect(() => {
         }
     );
 
-    function handleFileReady(
+    async function handleFileReady(
         event: Event
     ) {
 
@@ -730,20 +791,7 @@ useEffect(() => {
 
         activeTransferItemRef.current = null;
 
-        const link =
-            document.createElement("a");
-
-        link.href =
-            fileEvent.detail.url;
-
-        link.download =
-            fileEvent.detail.name;
-
-        document.body.appendChild(link);
-
-        link.click();
-
-        link.remove();
+        await saveReceivedFile(fileEvent.detail.url, fileEvent.detail.name);
 
         downloadingItemRef.current = null;
         PeerManager.reset();
@@ -864,6 +912,11 @@ useEffect(() => {
     onMediaControl={handleMediaControl}
     onMediaMove={handleMediaMove}
     onMediaRemove={handleMediaRemove}
+    canChooseDownloadFolder={canChooseDownloadFolder}
+    downloadFolderName={downloadFolderName}
+    showDownloadFolderPrompt={showDownloadFolderPrompt}
+    onChooseDownloadFolder={chooseDownloadFolder}
+    onDismissDownloadFolder={() => setShowDownloadFolderPrompt(false)}
 />
                 <button
 

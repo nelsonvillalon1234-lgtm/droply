@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, GripHorizontal, Pause, Play, X } from "lucide-react";
+import { ExternalLink, GripHorizontal, Maximize2, Minimize2, Pause, Play, X } from "lucide-react";
 import type { SharedMedia } from "../types";
 
 type Player = {
@@ -42,9 +42,11 @@ type Props = {
     onControl: (playing: boolean, time: number) => void;
     onMove: (x: number, y: number) => void;
     onRemove: () => void;
+    theater?: boolean;
+    onToggleTheater?: () => void;
 };
 
-export default function SharedYouTube({ media, scale, onControl, onMove, onRemove }: Props) {
+export default function SharedYouTube({ media, scale, onControl, onMove, onRemove, theater = false, onToggleTheater }: Props) {
     const mountRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<Player | null>(null);
     const mediaRef = useRef(media);
@@ -153,10 +155,11 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
         onControl(!media.playing, currentTime);
     }
 
-    return <section ref={cardRef} tabIndex={-1} className="shared-youtube" style={{ left: position.x, top: position.y }}>
+    return <section ref={cardRef} tabIndex={-1} className={`shared-youtube ${theater ? "is-theater" : ""}`} style={theater ? undefined : { left: position.x, top: position.y }}>
         <header
             onPointerDown={event => {
                 event.stopPropagation();
+                if (theater) return;
                 if ((event.target as HTMLElement).closest("button,a")) return;
                 event.currentTarget.setPointerCapture(event.pointerId);
                 dragRef.current = {
@@ -188,6 +191,7 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
             onLostPointerCapture={finishDrag}
         >
             <GripHorizontal size={17}/><span>YouTube compartido</span>
+            <button onClick={onToggleTheater} aria-label={theater ? "Salir de pantalla completa" : "Ver en pantalla completa"}>{theater ? <Minimize2 size={15}/> : <Maximize2 size={15}/>}</button>
             <a href={`https://youtu.be/${media.videoId}`} target="_blank" rel="noreferrer"><ExternalLink size={15}/></a>
             <button onClick={onRemove}><X size={16}/></button>
         </header>
