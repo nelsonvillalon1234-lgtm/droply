@@ -134,4 +134,11 @@
 .join-room-form input::placeholder { color: #a8adba; }
 .join-room-form button { display: grid; place-items: center; border-radius: 11px; color: #fff; background: var(--brand); }
 .join-room-form button:disabled { opacity: .35; cursor: default; }
+.recent-rooms { width: 100%; margin-top: 3px; padding-top: 14px; display: flex; flex-direction: column; gap: 7px; border-top: 1px solid var(--line); }
+.recent-rooms-title { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.recent-rooms > button { width: 100%; min-height: 52px; padding: 8px 11px; display: flex; align-items: center; justify-content: space-between; color: var(--ink); background: var(--surface-soft); border: 1px solid transparent; border-radius: 12px; text-align: left; transition: .18s ease; }
+.recent-rooms > button:hover { color: var(--brand); background: var(--brand-soft); border-color: rgba(91,86,246,.13); }
+.recent-rooms > button span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.recent-rooms strong { font-size: 12px; letter-spacing: .06em; }
+.recent-rooms small { color: var(--muted); font-size: 10px; font-weight: 500; }
 @media(max-width:600px){.center-action{width:calc(100% - 32px);padding:28px 24px}.join-room-form{width:100%;max-width:280px}}

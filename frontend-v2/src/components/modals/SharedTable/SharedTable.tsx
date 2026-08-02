@@ -15,6 +15,22 @@ import TopBar from "./components/TopBar";
 import Workspace from "./components/Workspace";
 import { useRef } from "react";
 import PeerManager from "../../../core/PeerManager";
+import type { RecentRoom } from "./components/CenterAction";
+
+const RECENT_TABLES_KEY = "droply-recent-tables";
+const RECENT_TABLE_TTL = 24 * 60 * 60 * 1000;
+
+function readRecentRooms(): RecentRoom[] {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(RECENT_TABLES_KEY) ?? "[]") as RecentRoom[];
+        const now = Date.now();
+        const active = parsed.filter(room => room.code?.length === 6 && room.expiresAt > now).slice(0, 2);
+        localStorage.setItem(RECENT_TABLES_KEY, JSON.stringify(active));
+        return active;
+    } catch {
+        return [];
+    }
+}
 
 
 
@@ -47,9 +63,11 @@ export default function SharedTable({
 
     const [showMenu, setShowMenu] = useState(true);
     const [socketConnected, setSocketConnected] = useState(socket.connected);
+    const [recentRooms, setRecentRooms] = useState<RecentRoom[]>(readRecentRooms);
 
     const roomRef = useRef(sessionStorage.getItem("droply-active-table") ?? "");
     const reconnectPendingRef = useRef(Boolean(roomRef.current));
+    const joiningCodeRef = useRef("");
 
 const [
     downloadItemId,
@@ -86,6 +104,23 @@ const [items, setItems] = useState<TableItem[]>([]);
 const [messages, setMessages] = useState<ChatMessage[]>([]);
 const [activity, setActivity] = useState<ActivityItem[]>([]);
 const undoRef = useRef<TableItem | null>(null);
+
+function rememberRoom(code: string) {
+    const now = Date.now();
+    setRecentRooms(current => {
+        const next = [{ code, openedAt: now, expiresAt: now + RECENT_TABLE_TTL }, ...current.filter(room => room.code !== code)].slice(0, 2);
+        localStorage.setItem(RECENT_TABLES_KEY, JSON.stringify(next));
+        return next;
+    });
+}
+
+function forgetRoom(code: string) {
+    setRecentRooms(current => {
+        const next = current.filter(room => room.code !== code);
+        localStorage.setItem(RECENT_TABLES_KEY, JSON.stringify(next));
+        return next;
+    });
+}
 
 function recordActivity(text: string) {
     setActivity(current => [{ id: crypto.randomUUID(), text, createdAt: Date.now() }, ...current].slice(0, 50));
@@ -142,6 +177,7 @@ function handleCreateRoom() {
 function handleJoinRoom(code: string) {
     if (creatingRoom) return;
     setCreatingRoom(true);
+    joiningCodeRef.current = code;
     socket.emit("join-room", {
         code,
         device: { id: deviceId, name: deviceName, type: deviceType },
@@ -380,6 +416,8 @@ function handleDownload(item: TableItem) {
 
     setRoomCode(code);
 
+    rememberRoom(code);
+
     roomRef.current = code;
 
     sessionStorage.setItem("droply-active-table", code);
@@ -391,11 +429,14 @@ function handleDownload(item: TableItem) {
 
     setRoomCode(code);
 
+    rememberRoom(code);
+
     roomRef.current = code;
 
     sessionStorage.setItem("droply-active-table", code);
 
     reconnectPendingRef.current = false;
+    joiningCodeRef.current = "";
 
     setHasRoom(true);
 
@@ -405,11 +446,14 @@ function handleDownload(item: TableItem) {
 
     socket.on("join-error", () => {
         setCreatingRoom(false);
+        const failedCode = joiningCodeRef.current || (reconnectPendingRef.current ? roomRef.current : "");
+        joiningCodeRef.current = "";
         if (reconnectPendingRef.current) {
             sessionStorage.removeItem("droply-active-table");
             roomRef.current = "";
             reconnectPendingRef.current = false;
         }
+        if (failedCode) forgetRoom(failedCode);
         window.dispatchEvent(new CustomEvent("droply-toast", { detail: "No encontramos esa mesa. Revisa el código." }));
     });
 
@@ -786,6 +830,7 @@ useEffect(() => {
     onDeleteItem={handleDeleteItem}
     onRestoreItem={handleRestoreItem}
     onDisconnect={handleLeaveTable}
+    recentRooms={recentRooms}
 />
                 <button
 

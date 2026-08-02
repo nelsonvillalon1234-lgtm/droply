@@ -2,7 +2,9 @@ import "./../styles/centerAction.css";
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowRight, LoaderCircle, Plus } from "lucide-react";
+import { ArrowRight, Clock3, LoaderCircle, Plus } from "lucide-react";
+
+export type RecentRoom = { code: string; openedAt: number; expiresAt: number };
 
 type Props = {
 
@@ -11,6 +13,8 @@ type Props = {
     onCreateRoom: () => void;
 
     onJoinRoom: (code: string) => void;
+
+    recentRooms: RecentRoom[];
 
 };
 
@@ -21,6 +25,8 @@ export default function CenterAction({
     onCreateRoom,
 
     onJoinRoom,
+
+    recentRooms,
 
 }: Props) {
 
@@ -76,6 +82,18 @@ export default function CenterAction({
                     <ArrowRight size={20} />
                 </button>
             </form>
+
+            {recentRooms.length > 0 && (
+                <section className="recent-rooms" aria-label="Mesas recientes">
+                    <div className="recent-rooms-title"><Clock3 size={14} /> Mesas recientes</div>
+                    {recentRooms.map(room => (
+                        <button key={room.code} type="button" onClick={() => onJoinRoom(room.code)} disabled={creating}>
+                            <span><strong>Mesa {room.code}</strong><small>Abierta recientemente</small></span>
+                            <ArrowRight size={17} />
+                        </button>
+                    ))}
+                </section>
+            )}
 
         </div>
 
