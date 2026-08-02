@@ -1,6 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState} from "react";
 
 import FileDropzone from "../ui/FileDropzone";
+
+type HistoryItem = {
+
+    id: string;
+
+    type: "compress" | "merge" | "convert" | "sign";
+
+    title: string;
+
+    description: string;
+
+    date: string;
+
+};
 
 type ConvertPanelProps = {
 
@@ -10,17 +24,50 @@ type ConvertPanelProps = {
         React.SetStateAction<File | null>
     >;
 
+    setHistory: React.Dispatch<
+        React.SetStateAction<
+            HistoryItem[]
+        >
+    >;
+
 };
 
 function ConvertPanel({
 
     file,
 
-    setFile
+    setFile,
+
+    setHistory
 
 }: ConvertPanelProps) {
 
     const [format, setFormat] = useState("png");
+    const [previewUrl, setPreviewUrl] =
+    useState("");
+
+useEffect(() => {
+
+    if (!file) {
+
+        setPreviewUrl("");
+
+        return;
+
+    }
+
+    const url =
+        URL.createObjectURL(file);
+
+    setPreviewUrl(url);
+
+    return () => {
+
+        URL.revokeObjectURL(url);
+
+    };
+
+}, [file]);
 
     const convertImage = () => {
 
@@ -74,12 +121,50 @@ function ConvertPanel({
             link.download =
                 `imagen-convertida.${format}`;
 
+            setHistory((current) => [
+
+    {
+
+        id: crypto.randomUUID(),
+
+        type: "convert",
+
+        title: `imagen-convertida.${format}`,
+
+        description:
+
+            `${file.name}`,
+
+        date:
+
+            new Date()
+
+                .toLocaleString()
+
+    },
+
+    ...current
+
+]);
+
             link.click();
 
         };
 
-        image.src =
-            URL.createObjectURL(file);
+        const imageUrl =
+    URL.createObjectURL(file);
+
+image.src = imageUrl;
+
+image.onload = () => {
+
+    // todo tu código
+
+    URL.revokeObjectURL(
+        imageUrl
+    );
+
+};
 
     };
 
@@ -144,10 +229,10 @@ function ConvertPanel({
                     <div className="convert-content">
 
     <img
-        src={URL.createObjectURL(file)}
-        className="convert-preview"
-        alt="preview"
-    />
+    src={previewUrl}
+    className="convert-preview"
+    alt="preview"
+/>
 
     <div className="convert-options">
 

@@ -7,12 +7,32 @@ import "react-pdf/dist/Page/TextLayer.css";
 import SignatureCanvas from "react-signature-canvas";
 import FileDropzone from "../ui/FileDropzone";
 
+type HistoryItem = {
+
+    id: string;
+
+    type: "compress" | "merge" | "convert" | "sign";
+
+    title: string;
+
+    description: string;
+
+    date: string;
+
+};
+
 type PdfPanelProps = {
 
     file: File | null;
 
     setFile: React.Dispatch<
         React.SetStateAction<File | null>
+    >;
+
+    setHistory: React.Dispatch<
+        React.SetStateAction<
+            HistoryItem[]
+        >
     >;
 
 };
@@ -23,7 +43,9 @@ function PdfPanel({
 
     file,
 
-    setFile
+    setFile,
+
+    setHistory
 
 }: PdfPanelProps) {
 
@@ -184,6 +206,32 @@ const blob = new Blob(
         "-firmado.pdf"
 
     );
+
+    setHistory((current) => [
+
+    {
+
+        id: crypto.randomUUID(),
+
+        type: "sign",
+
+        title: "documento-firmado.pdf",
+
+        description:
+
+            file?.name || "PDF firmado",
+
+        date:
+
+            new Date()
+
+                .toLocaleString()
+
+    },
+
+    ...current
+
+]);
 
     link.click();
 

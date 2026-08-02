@@ -33,22 +33,21 @@ function SortableFileCard({
 
     const {
 
-        attributes,
+    attributes,
 
-        listeners,
+    listeners,
 
-        setNodeRef,
+    setNodeRef,
 
-        transform,
+    transform,
 
-        transition
+    transition
 
-    } = useSortable({
+} = useSortable({
 
-        id: file.name
+    id: `${file.name}-${index}`
 
-    });
-
+});
     const style = {
 
         transform: CSS.Transform.toString(

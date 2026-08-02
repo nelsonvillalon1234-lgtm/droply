@@ -1,4 +1,4 @@
-import { useState } from "react";
+import {useEffect,useState} from "react";
 import FileDropzone from "../ui/FileDropzone";
 import SortableFileCard from "./SortableFileCard";
 import {
@@ -12,6 +12,20 @@ import {
     arrayMove
 } from "@dnd-kit/sortable";
 
+type HistoryItem = {
+
+    id: string;
+
+    type: "compress" | "merge" | "convert" | "sign";
+
+    title: string;
+
+    description: string;
+
+    date: string;
+
+};
+
 type MergePdfPanelProps = {
 
     files: File[];
@@ -20,13 +34,20 @@ type MergePdfPanelProps = {
         React.SetStateAction<File[]>
     >;
 
-};
+    setHistory: React.Dispatch<
+        React.SetStateAction<
+            HistoryItem[]
+        >
+    >;
 
+};
 function MergePdfPanel({
 
     files,
 
-    setFiles
+    setFiles,
+
+    setHistory
 
 }: MergePdfPanelProps) {
 
@@ -35,6 +56,48 @@ function MergePdfPanel({
     const [pageCounts, setPageCounts] = useState<
     Record<string, number>
 >({});
+
+useEffect(() => {
+
+    setPageCounts((current) => {
+
+        const updated = {
+
+            ...current
+
+        };
+
+        Object.keys(updated).forEach(
+
+            (fileName) => {
+
+                const exists =
+                    files.some(
+
+                        (file) =>
+
+                            file.name ===
+                            fileName
+
+                    );
+
+                if (!exists) {
+
+                    delete updated[
+                        fileName
+                    ];
+
+                }
+
+            }
+
+        );
+
+        return updated;
+
+    });
+
+}, [files]);
 
     const loadPageCounts = async (
     pdfFiles: File[]
@@ -96,15 +159,19 @@ function MergePdfPanel({
 
     const oldIndex = files.findIndex(
 
-        (file) => file.name === active.id
+    (file, index) =>
 
-    );
+        `${file.name}-${index}` === active.id
 
-    const newIndex = files.findIndex(
+);
 
-        (file) => file.name === over.id
+const newIndex = files.findIndex(
 
-    );
+    (file, index) =>
+
+        `${file.name}-${index}` === over.id
+
+);
 
     setFiles(
 
@@ -194,6 +261,40 @@ setIsMerging(true);
             "documentos-unidos.pdf";
 
             setTimeout(() => {
+
+                setHistory((current) => [
+
+    {
+
+        id: crypto.randomUUID(),
+
+        type: "merge",
+
+        title: "documentos-unidos.pdf",
+
+        description:
+
+            `${files.length} PDFs • ${Object.values(pageCounts).reduce(
+
+                (total, pages) =>
+
+                    total + pages,
+
+                0
+
+            )} páginas`,
+
+        date:
+
+            new Date()
+
+                .toLocaleString()
+
+    },
+
+    ...current
+
+]);
 
     setIsMerging(false);
 
@@ -292,9 +393,11 @@ setIsMerging(true);
     <SortableContext
         items={files.map(
 
-            (file) => file.name
+    (file, index) =>
 
-        )}
+        `${file.name}-${index}`
+
+)}
         strategy={
             verticalListSortingStrategy
         }

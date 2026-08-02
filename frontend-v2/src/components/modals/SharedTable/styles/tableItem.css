@@ -1,0 +1,244 @@
+.table-item {
+    position: absolute;
+
+    width: 150px;
+    padding: 14px;
+
+    box-sizing: border-box;
+
+    border-radius: 18px;
+    background: white;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+
+    cursor: grab;
+    touch-action: none;
+
+    box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.08);
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        background 0.25s ease;
+}
+
+.table-item:hover {
+    transform: translateY(-3px);
+
+    box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.12);
+}
+
+.table-item-icon {
+    position: relative;
+
+    width: 48px;
+    height: 48px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    color: #5b56f6;
+}
+
+.table-item-name {
+    max-width: 100%;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: #222;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.table-item-state {
+    color: #666;
+    font-size: 11px;
+}
+
+.table-item-state.complete {
+    color: #20a35a;
+    font-weight: 600;
+}
+
+.table-item--downloading {
+    cursor: default;
+}
+
+.table-item--downloading:hover {
+    transform: none;
+}
+
+.download-indicator,
+.download-complete {
+    position: absolute;
+    inset: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    background: white;
+}
+
+.download-ring {
+    position: absolute;
+
+    width: 44px;
+    height: 44px;
+
+    transform: rotate(-90deg);
+}
+
+.download-ring-background,
+.download-ring-progress {
+    fill: none;
+    stroke-width: 4;
+}
+
+.download-ring-background {
+    stroke: #e7e7f5;
+}
+
+.download-ring-progress {
+    stroke: #5b56f6;
+    stroke-linecap: round;
+
+    transition:
+        stroke-dashoffset 0.2s linear;
+}
+
+.download-indicator span {
+    position: relative;
+
+    color: #5b56f6;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.download-complete {
+    color: white;
+    background: #20a35a;
+
+    animation:
+        downloadCompleteEnter 0.3s ease-out both;
+}
+
+@keyframes downloadCompleteEnter {
+    from {
+        opacity: 0;
+        transform: scale(0.65);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+.table-item-details {
+    width: 100%;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+
+    color: #777;
+    font-size: 10px;
+    text-align: center;
+}
+
+.table-item-owner {
+    max-width: 100%;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    color: #555;
+    font-weight: 600;
+}
+
+.table-item--dragging {
+    z-index: 50;
+
+    cursor: grabbing;
+
+    transform: scale(1.04);
+
+    box-shadow:
+        0 24px 50px rgba(0, 0, 0, 0.16);
+}
+
+.table-item--dragging:hover {
+    transform: scale(1.04);
+}
+
+.download-cancel {
+    position: relative;
+    z-index: 2;
+
+    width: 32px;
+    height: 32px;
+    padding: 0;
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+
+    color: white;
+    background: #ef4444;
+    border: none;
+    border-radius: 50%;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 5px 14px
+        rgba(239, 68, 68, 0.3);
+
+    transition:
+        transform 0.18s ease,
+        background 0.18s ease;
+}
+
+.download-cancel:hover {
+    background: #dc2626;
+    transform: scale(1.06);
+}
+
+.download-indicator:hover
+.download-percentage {
+    display: none;
+}
+
+.download-indicator:hover
+.download-cancel {
+    display: flex;
+}
+
+.table-item { width: 158px; padding: 15px; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 10px 28px rgba(23,32,51,.08); }
+.table-item:hover { border-color: rgba(49,92,123,.25); box-shadow: 0 18px 40px rgba(23,32,51,.12); }
+.table-item-icon { color: var(--brand); }
+.table-item-name { color: var(--ink); }
+.table-item-owner { color: var(--brand); }
+.download-ring-progress { stroke: var(--brand); }
+.download-indicator span { color: var(--brand); }
+.download-cancel { background: var(--coral); box-shadow: 0 5px 14px rgba(239,118,95,.3); }
+.download-cancel:hover { background: #db604b; }
+@media (max-width: 560px) { .table-item { width: 132px; padding: 12px; } }
+.table-item--selected { z-index:45; border-color:var(--brand); box-shadow:0 0 0 3px rgba(91,86,246,.12),0 20px 45px rgba(23,32,51,.14); }
+.table-item-actions { position:absolute; left:50%; bottom:calc(100% + 8px); height:34px; padding:3px; display:flex; gap:2px; transform:translateX(-50%); background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 25px rgba(23,32,51,.14); }
+.table-item-actions button { width:28px; height:28px; display:grid; place-items:center; color:#626b7a; border-radius:7px; }
+.table-item-actions button:hover{color:var(--brand);background:var(--brand-soft)}
+.table-item-actions button:last-child:hover{color:#dc4e4e;background:#fff0f0}
+.table-item-rename{width:100%}.table-item-rename input{width:100%;box-sizing:border-box;padding:5px 6px;text-align:center;border:1px solid var(--brand);border-radius:7px;outline:0;font-size:11px}

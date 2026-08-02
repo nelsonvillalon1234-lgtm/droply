@@ -1,0 +1,90 @@
+.file-card{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:18px;
+
+    padding:20px;
+
+    border-radius:20px;
+
+    background:#F8F9FD;
+
+    border:1px solid rgba(0,0,0,.05);
+
+    box-shadow:
+        0 10px 30px rgba(0,0,0,.04);
+
+    margin-bottom:28px;
+
+    transition:.25s;
+
+}
+
+.file-card:hover{
+
+    transform:translateY(-2px);
+
+}
+
+.file-icon{
+
+    width:58px;
+
+    height:58px;
+
+    border-radius:16px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    background:#ECEBFF;
+
+    color:#5E5BFF;
+
+    flex-shrink:0;
+
+}
+
+.file-info{
+
+    flex:1;
+
+    overflow:hidden;
+
+}
+
+.file-info h3{
+
+    margin:0;
+
+    font-size:18px;
+
+    font-weight:700;
+
+    white-space:nowrap;
+
+    overflow:hidden;
+
+    text-overflow:ellipsis;
+
+}
+
+.file-info span{
+
+    display:block;
+
+    margin-top:6px;
+
+    color:#8A8FA3;
+
+    font-size:14px;
+
+    font-weight:500;
+
+}

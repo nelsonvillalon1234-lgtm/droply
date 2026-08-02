@@ -1,38 +1,42 @@
+import { ArrowRight, LayoutGrid, LockKeyhole, Radio, Sparkles } from "lucide-react";
 import DropZone from "./DropZone";
 import CodeButton from "./CodeButton";
 
-function Hero() {
+type Props = {
+    onFileSelected: (file: File) => void;
+    onEnterCode: () => void;
+    onOpenSharedTable: () => void;
+};
+
+function Hero({ onFileSelected, onEnterCode, onOpenSharedTable }: Props) {
     return (
-        <section className="hero">
-
-            <div className="hero-left">
-
-                <DropZone />
-
-                <CodeButton />
-
-            </div>
-
-            <div className="hero-right">
-
-                <h1 className="hero-title">
-
-                    La distancia ya
-                    <br />
-                    no importa.
-
-                </h1>
-
+        <main className="hero">
+            <section className="hero-intro">
+                <span className="hero-eyebrow"><Sparkles size={15} /> Tus archivos, donde los necesitas</span>
+                <h1 className="hero-title">¿Qué quieres hacer?</h1>
                 <p className="hero-description">
-
-                    Envía archivos entre dispositivos
-                    de forma rápida, privada y sin límites.
-
+                    Transfiere archivos directamente entre tus dispositivos o abre una mesa para trabajar en equipo.
                 </p>
+            </section>
 
-            </div>
+            <section className="hero-actions" aria-label="Acciones principales">
+                <DropZone onFileSelected={onFileSelected} />
+                <CodeButton onClick={onEnterCode} />
+                <button className="action-card action-card--table" onClick={onOpenSharedTable}>
+                    <span className="action-icon"><LayoutGrid size={29} /></span>
+                    <span className="action-copy">
+                        <strong>Abrir una mesa</strong>
+                        <small>Comparte con tu equipo</small>
+                    </span>
+                    <ArrowRight className="action-arrow" size={21} />
+                </button>
+            </section>
 
-        </section>
+            <section className="trust-strip" aria-label="Privacidad de Droply">
+                <div><Radio size={18} /><span><strong>Directo</strong> entre dispositivos</span></div>
+                <div><LockKeyhole size={18} /><span><strong>Privado</strong> sin guardar tus archivos</span></div>
+            </section>
+        </main>
     );
 }
 

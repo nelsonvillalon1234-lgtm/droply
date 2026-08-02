@@ -4,6 +4,20 @@ import JSZip from "jszip";
 
 import FileDropzone from "../ui/FileDropzone";
 
+type HistoryItem = {
+
+    id: string;
+
+    type: "compress" | "merge" | "convert" | "sign";
+
+    title: string;
+
+    description: string;
+
+    date: string;
+
+};
+
 type CompressPanelProps = {
 
     files: File[];
@@ -12,13 +26,23 @@ type CompressPanelProps = {
         React.SetStateAction<File[]>
     >;
 
+    history: HistoryItem[];
+
+    setHistory: React.Dispatch<
+        React.SetStateAction<
+            HistoryItem[]
+        >
+    >;
+
 };
 
 function CompressPanel({
 
     files,
 
-    setFiles
+    setFiles,
+
+    setHistory
 
 }: CompressPanelProps) {
 
@@ -32,6 +56,24 @@ function CompressPanel({
     const [originalSize, setOriginalSize] = useState(0);
 
 const [compressedSize, setCompressedSize] = useState(0);
+
+    const visibleFiles = files.slice(0, 100);
+
+    const savedPercentage = Math.max(
+
+    0,
+
+    Math.round(
+
+        100 -
+
+        (compressedSize * 100) /
+
+        originalSize
+
+    )
+
+);
 
     const compressFiles = async () => {
 
@@ -81,6 +123,32 @@ const [compressedSize, setCompressedSize] = useState(0);
         link.click();
 
         URL.revokeObjectURL(url);
+
+        setHistory((current) => [
+
+    {
+
+        id: crypto.randomUUID(),
+
+        type: "compress",
+
+        title: `${zipName}.zip`,
+
+        description:
+
+            `${files.length} archivos`,
+
+        date:
+
+            new Date()
+
+                .toLocaleString()
+
+    },
+
+    ...current
+
+]);
 
         setIsCompressing(false);
 
@@ -167,19 +235,7 @@ setOriginalSize(total);
 
                 <span className="compress-saved">
 
-                    ↓ {
-
-                        (
-
-                            100 -
-
-                            (compressedSize * 100) /
-
-                            originalSize
-
-                        ).toFixed(0)
-
-                    }%
+                    ↓ {savedPercentage}%
 
                 </span>
 
@@ -212,19 +268,11 @@ setOriginalSize(total);
 
             width:
 
-                compressedSize > 0
+    compressedSize > 0
 
-                    ? `${
+        ? `${savedPercentage}%`
 
-                        100 -
-
-                        (compressedSize * 100) /
-
-                        originalSize
-
-                    }%`
-
-                    : "0%"
+        : "0%"
 
         }}
 
@@ -249,12 +297,33 @@ setOriginalSize(total);
                         />
 
                     </div>
+                    {
+
+    files.length > 100 && (
+
+        <p className="compress-limit">
+
+    Mostrando 100 de
+
+    {" "}
+
+    {files.length}
+
+    archivos.
+
+    Los demás se comprimirán igualmente.
+
+</p>
+
+    )
+
+}
 
                     <div className="merge-files-list">
 
                         {
 
-                            files.map((file) => (
+                            visibleFiles.map((file) => (
 
                                 <div
                                     key={file.name}
@@ -325,7 +394,11 @@ setOriginalSize(total);
                                         className="pdf-button secondary"
                                         onClick={() => {
 
-                                            setFiles([]);
+                                                setFiles([]);
+
+                                                 setOriginalSize(0);
+
+                                                setCompressedSize(0);
 
                                         }}
                                     >

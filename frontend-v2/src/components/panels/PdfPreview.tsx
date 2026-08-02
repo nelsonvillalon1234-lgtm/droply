@@ -1,10 +1,36 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type PdfPreviewProps = {
     file: File | null;
 };
 
+
 function PdfPreview({ file }: PdfPreviewProps) {
+
+    const [pdfUrl, setPdfUrl] = useState("");
+
+useEffect(() => {
+
+    if (!file) {
+
+        setPdfUrl("");
+
+        return;
+
+    }
+
+    const url =
+        URL.createObjectURL(file);
+
+    setPdfUrl(url);
+
+    return () => {
+
+        URL.revokeObjectURL(url);
+
+    };
+
+}, [file]);
 
     if (!file) {
 
@@ -25,10 +51,10 @@ function PdfPreview({ file }: PdfPreviewProps) {
             </p>
 
             <iframe
-                src={URL.createObjectURL(file)}
-                width="100%"
-                height="600"
-            />
+    src={pdfUrl}
+    width="100%"
+    height="600"
+/>
 
         </div>
 

@@ -2,6 +2,21 @@ import PdfPanel from "./PdfPanel";
 import MergePdfPanel from "./MergePdfPanel";
 import ConvertPanel from "./ConvertPanel";
 import CompressPanel from "./CompressPanel";
+import HistoryPanel from "./HistoryPanel";
+
+type HistoryItem = {
+
+    id: string;
+
+    type: "compress" | "merge" | "convert" | "sign";
+
+    title: string;
+
+    description: string;
+
+    date: string;
+
+};
 
 type PanelContainerProps = {
     title: string;
@@ -28,6 +43,12 @@ type PanelContainerProps = {
     setConvertImage: React.Dispatch<
         React.SetStateAction<File | null>
     >;
+
+    history: HistoryItem[];
+    setHistory: React.Dispatch<
+         React.SetStateAction<HistoryItem[]>
+    >;
+
 };
 
 function PanelContainer({
@@ -45,7 +66,10 @@ function PanelContainer({
     setCompressFiles,
 
     convertImage,
-    setConvertImage
+    setConvertImage,
+
+    history,
+    setHistory
 
 }: PanelContainerProps) {
 
@@ -90,38 +114,56 @@ function PanelContainer({
             {title === "Firmar PDF" && (
 
                 <PdfPanel
-                    file={signFile}
-                    setFile={setSignFile}
-                />
+    file={signFile}
+    setFile={setSignFile}
+    setHistory={setHistory}
+/>
 
             )}
 
             {title === "Unir PDF" && (
 
                 <MergePdfPanel
-                    files={mergeFiles}
-                    setFiles={setMergeFiles}
-                />
+    files={mergeFiles}
+    setFiles={setMergeFiles}
+    setHistory={setHistory}
+/>
 
             )}
 
             {title === "Convertir imágenes" && (
 
                 <ConvertPanel
-                    file={convertImage}
-                    setFile={setConvertImage}
-                />
+    file={convertImage}
+    setFile={setConvertImage}
+    setHistory={setHistory}
+/>
 
             )}
 
             {title === "Comprimir archivos" && (
 
+                
+
                 <CompressPanel
-                    files={compressFiles}
-                    setFiles={setCompressFiles}
-                />
+    files={compressFiles}
+    setFiles={setCompressFiles}
+
+    history={history}
+
+    setHistory={setHistory}
+/>
 
             )}
+
+            {title === "Historial" && (
+
+    <HistoryPanel
+    history={history}
+    setHistory={setHistory}
+/>
+
+)}
 
         </div>
 
