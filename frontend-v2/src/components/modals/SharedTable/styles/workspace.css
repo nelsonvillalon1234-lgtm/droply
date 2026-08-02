@@ -84,7 +84,7 @@
 .space-health { position:absolute; left:16px; right:16px; bottom:18px; padding:13px; display:flex; flex-direction:column; gap:5px; background:#f2fbf6; border:1px solid #d8f2e3; border-radius:13px; }
 .space-health strong { font-size:11px; }.space-health span { color:#159653; font-size:10px; }
 .devices-panel { display:none; }
-.workspace-viewport { position:absolute; z-index:2; inset:0 0 0 260px; overflow:hidden; cursor:grab; touch-action:none; background-color:#fafafa; background-image:radial-gradient(rgba(91,86,246,.18) .85px,transparent .85px); background-size:24px 24px; }
+.workspace-viewport { position:absolute; z-index:2; inset:0 0 0 260px; overflow:hidden; cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; background-color:#fafafa; background-image:radial-gradient(rgba(91,86,246,.18) .85px,transparent .85px); background-size:24px 24px; }
 .workspace-viewport.is-panning { cursor:grabbing; }
 .workspace-version { position:absolute; left:24px; bottom:10px; color:#9aa1b1; font-size:10px; letter-spacing:.04em; }
 .workspace-world { position:absolute; left:0; top:0; width:5200px; height:3600px; transform-origin:0 0; will-change:transform; }

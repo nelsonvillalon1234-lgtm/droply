@@ -452,7 +452,7 @@ PeerManager.setOnReceiveProgress((value) => {
                                     <strong>{queuedFiles.length} archivos preparados</strong>
                                     <span>{queuedFiles.slice(1, 4).map(item => item.name).join(" Â· ")}{queuedFiles.length > 4 ? ` Â· +${queuedFiles.length - 4}` : ""}</span>
                                 </div>}
-                                <input ref={addFilesInputRef} className="transfer-add-input" type="file" multiple onChange={(event) => {
+                                <input id="transfer-add-files-input" ref={addFilesInputRef} className="transfer-add-input" type="file" multiple onChange={(event) => {
                                     const incoming = Array.from(event.target.files ?? []);
                                     if (incoming.length === 0) return;
                                     const known = new Set(queuedFilesRef.current.map(item => `${item.name}:${item.size}:${item.lastModified}`));
@@ -462,9 +462,9 @@ PeerManager.setOnReceiveProgress((value) => {
                                     event.currentTarget.value = "";
                                     if (PeerManager.isReady()) void sendSelectedFiles();
                                 }} />
-                                <button className="transfer-add-files" type="button" onClick={() => addFilesInputRef.current?.click()}>
+                                <label className="transfer-add-files" htmlFor="transfer-add-files-input">
                                     <span>+</span><div><strong>Agregar archivos</strong><small>Puedes elegir varios a la vez</small></div>
-                                </button>
+                                </label>
 
                                 <QRSection
                                     roomCode={roomCode}

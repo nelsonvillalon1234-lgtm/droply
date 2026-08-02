@@ -226,10 +226,11 @@ export default function Workspace(props: Props) {
 
             <div className="canvas-breadcrumb">{folder && <button onClick={() => setCurrentFolder(folder.parentId ?? null)}><ChevronLeft size={16}/>Atrás</button>}<strong>{view==="activity"?"Actividad":view==="trash"?"Papelera":view==="folders"?"Carpetas":view==="shared"?"Compartidos conmigo":folder?.name ?? "Todos los archivos"}</strong>{canUndo&&<button className="undo-button" onClick={onUndo}><Undo2 size={15}/>Deshacer</button>}</div>
             <div ref={viewportRef} className={`workspace-viewport ${panRef.current ? "is-panning" : ""}`}
+                onClick={e => e.stopPropagation()}
                 onWheel={e => { if (!e.ctrlKey) setCamera(c => clampCamera({...c, x:c.x-e.deltaX, y:c.y-e.deltaY})); }}
                 onPointerDown={e => { const target=e.target as HTMLElement; if (e.button === 1 || !target.closest(".table-item, button, input, textarea")) { e.currentTarget.setPointerCapture(e.pointerId); panRef.current = { x:e.clientX, y:e.clientY, cameraX:camera.x, cameraY:camera.y }; if(e.pointerType==="touch"){const p=screenToWorld(e.clientX,e.clientY);const clientX=e.clientX,clientY=e.clientY;longPressRef.current={startX:clientX,startY:clientY,timer:window.setTimeout(()=>{setContextMenu({clientX,clientY,...p});panRef.current=null;longPressRef.current=null;},600)};} } }}
                 onPointerMove={e => { const hold=longPressRef.current;if(hold&&Math.hypot(e.clientX-hold.startX,e.clientY-hold.startY)>8){clearTimeout(hold.timer);longPressRef.current=null;} const p=panRef.current; if(p) setCamera(c=>clampCamera({...c,x:p.cameraX+e.clientX-p.x,y:p.cameraY+e.clientY-p.y})); }}
-                onPointerUp={() => { if(longPressRef.current){clearTimeout(longPressRef.current.timer);longPressRef.current=null;} panRef.current=null; }}
+                onPointerUp={e => { const hold=longPressRef.current;if(hold){clearTimeout(hold.timer);if(e.pointerType==="touch"){const p=screenToWorld(e.clientX,e.clientY);setContextMenu({clientX:e.clientX,clientY:e.clientY,...p});}longPressRef.current=null;} panRef.current=null; }}
                 onPointerCancel={() => { if(longPressRef.current){clearTimeout(longPressRef.current.timer);longPressRef.current=null;} panRef.current=null; }}
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); const file=e.dataTransfer.files[0]; if(file){ const p=screenToWorld(e.clientX,e.clientY); onAddFile(file,p.x,p.y,currentFolder); } }}
