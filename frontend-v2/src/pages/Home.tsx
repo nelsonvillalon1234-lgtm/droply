@@ -250,7 +250,7 @@ function handleSelectPanel(panel: string) {
     onClose={() => setSharedTableOpen(false)}
 />
 
-{!profileReady && (
+{sharedTableOpen && !profileReady && (
     <div className="profile-setup-overlay">
         <form
             className="profile-setup"

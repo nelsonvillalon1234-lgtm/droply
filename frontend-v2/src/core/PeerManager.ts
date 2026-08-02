@@ -18,6 +18,8 @@ class PeerManager {
     private channel: RTCDataChannel | null = null;
     private room = "";
     private isOpen = false;
+    private isSending = false;
+    private isApplyingRemoteDescription = false;
     private pendingIceCandidates: RTCIceCandidateInit[] = [];
     private onReceiveProgressCallback?: (progress: number) => void;
     private onProgressCallback?: (progress: number) => void;
@@ -192,8 +194,10 @@ this.peer.onconnectionstatechange = async () => {
 
     private registerChannel() {
 
-        if (!this.channel)
+    if (!this.channel)
             return;
+
+    this.channel.binaryType = "arraybuffer";
 
         
     this.channel.onopen = () => {
@@ -403,6 +407,7 @@ this.channel.onclose = () => {
     console.log("🔴 DataChannel cerrado");
 
     this.isOpen = false;
+    this.isSending = false;
 
     this.channel = null;
 
@@ -468,6 +473,11 @@ this.channel.onclose = () => {
         if (!this.peer)
             return false;
 
+        if (this.isApplyingRemoteDescription) {
+            console.log("Descripción WebRTC duplicada ignorada");
+            return false;
+        }
+
         if (description.type === "answer" && this.peer.signalingState !== "have-local-offer") {
             console.log("Respuesta WebRTC duplicada ignorada");
             return false;
@@ -480,14 +490,19 @@ this.channel.onclose = () => {
 
     console.log("📥 RemoteDescription");
 
-        await this.peer.setRemoteDescription(description);
+        this.isApplyingRemoteDescription = true;
+        try {
+            await this.peer.setRemoteDescription(description);
 
-        const candidates = this.pendingIceCandidates.splice(0);
-        for (const candidate of candidates) {
-            await this.peer.addIceCandidate(candidate);
+            const candidates = this.pendingIceCandidates.splice(0);
+            for (const candidate of candidates) {
+                await this.peer.addIceCandidate(candidate);
+            }
+
+            return true;
+        } finally {
+            this.isApplyingRemoteDescription = false;
         }
-
-        return true;
 
 }
 
@@ -513,6 +528,8 @@ this.channel.onclose = () => {
         this.peer = null;
         this.room = "";
         this.isOpen = false;
+        this.isSending = false;
+        this.isApplyingRemoteDescription = false;
         this.pendingIceCandidates = [];
         this.iceConfigurationReady = Promise.resolve();
     }
@@ -545,6 +562,7 @@ setOnTime(callback: (time: string) => void) {
 cancelTransfer() {
 
     this.transferVersion++;
+    this.isSending = false;
 
     console.log(
         "❌ Transferencia invalidada"
@@ -566,6 +584,11 @@ setOnReady(callback: () => void) {
     
 async sendFile(file: File) {
 
+    if (this.isSending) {
+        console.log("El archivo ya se está enviando");
+        return;
+    }
+
     const currentTransfer =
         ++this.transferVersion;
 
@@ -582,7 +605,9 @@ async sendFile(file: File) {
 
     }
 
-    const CHUNK_SIZE = 128 * 1024;
+    this.isSending = true;
+
+    const CHUNK_SIZE = 64 * 1024;
 
     console.log("📤 Enviando:", file.name);
 
@@ -624,7 +649,7 @@ async sendFile(file: File) {
 
     const buffer = await slice.arrayBuffer();
 
-while (this.channel.bufferedAmount > 8 * 1024 * 1024) {
+while (this.channel.bufferedAmount > 1024 * 1024) {
     await new Promise(resolve => setTimeout(resolve, 10));
 }
 if (
@@ -709,6 +734,8 @@ if (
         hashAlgorithm: "SHA-256-chain-v1"
 
     }));
+
+    this.isSending = false;
 
     console.log("✅ Archivo enviado");
 
