@@ -263,7 +263,7 @@ export default function Workspace(props: Props) {
                     <button className="workspace-disconnect" onClick={onDisconnect}><LogOut size={17}/>Desconectar</button>
                 </nav>
                 <div className="space-health"><strong>Disponibilidad</strong><span>● {Math.round((devices.length / 4) * 100)}% de la mesa conectada</span></div>
-                <small className="workspace-version">Droply beta · v0.5.4</small>
+                <small className="workspace-version">Droply beta · v0.5.5</small>
             </aside>
 
             <div className="workspace-search">
