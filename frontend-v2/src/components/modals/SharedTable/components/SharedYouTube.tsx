@@ -108,9 +108,22 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
         return () => window.clearTimeout(timer);
     }, [isReady, media.playing, media.currentTime, media.updatedAt]);
 
+    function finishDrag() {
+        const completed = dragRef.current;
+        if (!completed) return;
+        setPosition({ x: completed.nextX, y: completed.nextY });
+        onMove(completed.nextX, completed.nextY);
+        if (cardRef.current) {
+            cardRef.current.style.translate = "";
+            cardRef.current.classList.remove("is-dragging");
+        }
+        dragRef.current = null;
+    }
+
     return <section ref={cardRef} className="shared-youtube" style={{ left: position.x, top: position.y }}>
         <header
             onPointerDown={event => {
+                event.stopPropagation();
                 if ((event.target as HTMLElement).closest("button,a")) return;
                 event.currentTarget.setPointerCapture(event.pointerId);
                 dragRef.current = {
@@ -124,25 +137,22 @@ export default function SharedYouTube({ media, scale, onControl, onMove, onRemov
                 cardRef.current?.classList.add("is-dragging");
             }}
             onPointerMove={event => {
+                event.stopPropagation();
                 const start = dragRef.current;
                 if (!start) return;
+                if (event.pointerType === "mouse" && event.buttons === 0) {
+                    finishDrag();
+                    return;
+                }
                 start.nextX = Math.max(0, Math.min(4700, start.x + (event.clientX - start.clientX) / scale));
                 start.nextY = Math.max(0, Math.min(3300, start.y + (event.clientY - start.clientY) / scale));
                 if (cardRef.current) {
                     cardRef.current.style.translate = `${start.nextX - start.x}px ${start.nextY - start.y}px`;
                 }
             }}
-            onPointerUp={() => {
-                const completed = dragRef.current;
-                if (!completed) return;
-                setPosition({ x: completed.nextX, y: completed.nextY });
-                onMove(completed.nextX, completed.nextY);
-                if (cardRef.current) {
-                    cardRef.current.style.translate = "";
-                    cardRef.current.classList.remove("is-dragging");
-                }
-                dragRef.current = null;
-            }}
+            onPointerUp={event => { event.stopPropagation(); finishDrag(); }}
+            onPointerCancel={event => { event.stopPropagation(); finishDrag(); }}
+            onLostPointerCapture={finishDrag}
         >
             <GripHorizontal size={17}/><span>YouTube compartido</span>
             <a href={`https://youtu.be/${media.videoId}`} target="_blank" rel="noreferrer"><ExternalLink size={15}/></a>
