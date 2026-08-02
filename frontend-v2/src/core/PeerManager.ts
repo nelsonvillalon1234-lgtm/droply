@@ -22,6 +22,7 @@ class PeerManager {
     private isApplyingRemoteDescription = false;
     private signalTargetSocketId = "";
     private signalItemId = "";
+    private relayAvailable = false;
     private pendingIceCandidates: RTCIceCandidateInit[] = [];
     private onReceiveProgressCallback?: (progress: number) => void;
     private onProgressCallback?: (progress: number) => void;
@@ -174,6 +175,12 @@ this.peer.onconnectionstatechange = async () => {
 
     }
 
+    if (this.peer?.connectionState === "failed") {
+        window.dispatchEvent(new CustomEvent("peer-connection-failed", {
+            detail: { relayAvailable: this.relayAvailable },
+        }));
+    }
+
 };
 
         this.peer.ondatachannel = ({ channel }) => {
@@ -193,7 +200,8 @@ this.peer.onconnectionstatechange = async () => {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
             const response = await fetch(`${backendUrl}/api/ice-config`, { cache: "no-store" });
             if (!response.ok) return;
-            const configuration = await response.json() as { iceServers?: RTCIceServer[] };
+            const configuration = await response.json() as { iceServers?: RTCIceServer[]; relayAvailable?: boolean };
+            this.relayAvailable = Boolean(configuration.relayAvailable);
             if (this.peer && Array.isArray(configuration.iceServers) && configuration.iceServers.length) {
                 this.peer.setConfiguration({ iceServers: configuration.iceServers });
             }
@@ -542,6 +550,7 @@ this.channel.onclose = () => {
         this.isApplyingRemoteDescription = false;
         this.signalTargetSocketId = "";
         this.signalItemId = "";
+        this.relayAvailable = false;
         this.pendingIceCandidates = [];
         this.iceConfigurationReady = Promise.resolve();
     }

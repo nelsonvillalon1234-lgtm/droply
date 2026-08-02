@@ -128,3 +128,10 @@
 .center-action-circle { width: 68px; height: 68px; color: var(--brand); border: 0; border-radius: 20px; background: var(--brand-soft); box-shadow: none; }
 .center-action-circle:hover { color: #fff; background: var(--brand); }
 .create-room-label { color: var(--ink); font-size: 17px; }
+.center-action-divider { color: var(--muted); font-size: 13px; }
+.join-room-form { width: 220px; height: 50px; padding: 5px; display: grid; grid-template-columns: 1fr 40px; gap: 5px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.join-room-form input { min-width: 0; border: 0; outline: 0; padding: 0 10px; color: var(--ink); background: transparent; font-size: 16px; font-weight: 750; letter-spacing: .18em; text-transform: uppercase; }
+.join-room-form input::placeholder { color: #a8adba; }
+.join-room-form button { display: grid; place-items: center; border-radius: 11px; color: #fff; background: var(--brand); }
+.join-room-form button:disabled { opacity: .35; cursor: default; }
+@media(max-width:600px){.center-action{width:calc(100% - 32px);padding:28px 24px}.join-room-form{width:100%;max-width:280px}}

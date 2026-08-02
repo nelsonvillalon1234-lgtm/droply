@@ -42,7 +42,26 @@ app.get("/", (_, res) => {
     res.send("🚀 Droply Backend funcionando");
 });
 
-app.get("/api/ice-config", (_, res) => {
+app.get("/api/ice-config", async (_, res) => {
+    const meteredApp = (process.env.METERED_TURN_APP_NAME ?? "").trim();
+    const meteredApiKey = (process.env.METERED_TURN_API_KEY ?? "").trim();
+    if (/^[a-z0-9-]{1,63}$/i.test(meteredApp) && meteredApiKey) {
+        try {
+            const endpoint = new URL(`https://${meteredApp}.metered.live/api/v1/turn/credentials`);
+            endpoint.searchParams.set("apiKey", meteredApiKey);
+            const response = await fetch(endpoint, { signal: AbortSignal.timeout(5_000) });
+            if (response.ok) {
+                const meteredServers = await response.json();
+                if (Array.isArray(meteredServers) && meteredServers.length) {
+                    res.setHeader("Cache-Control", "private, no-store");
+                    return res.json({ iceServers: meteredServers, relayAvailable: true });
+                }
+            }
+        } catch (error) {
+            console.warn("No se pudo obtener la configuracion TURN de Metered", error);
+        }
+    }
+
     const urls = (process.env.TURN_URLS ?? "").split(",").map((url) => url.trim()).filter(Boolean);
     const iceServers: Array<{ urls: string | string[]; username?: string; credential?: string }> = [
         { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
@@ -55,7 +74,7 @@ app.get("/api/ice-config", (_, res) => {
         iceServers.push({ urls, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL });
     }
     res.setHeader("Cache-Control", "no-store");
-    res.json({ iceServers });
+    res.json({ iceServers, relayAvailable: iceServers.length > 1 });
 });
 
 const server = http.createServer(app);

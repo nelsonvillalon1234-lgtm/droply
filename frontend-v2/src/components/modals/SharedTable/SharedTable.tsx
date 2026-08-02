@@ -7,7 +7,8 @@ import type { ActivityItem, ChatMessage, DeviceType, TableItem } from "./types";
 import "./styles/sharedTable.css";
 import socket from "../../../services/socket";
 import deviceId, {
-    deviceName
+    deviceName,
+    deviceType
 } from "../../../services/device";
 import TopBar from "./components/TopBar";
 import Workspace from "./components/Workspace";
@@ -73,7 +74,7 @@ const [devices, setDevices] = useState<DeviceType[]>([
     {
         id: deviceId,
         name: deviceName,
-        type: "pc",
+        type: deviceType,
     },
 ]);
 
@@ -118,13 +119,13 @@ function handleUndo() {
 }
 
 
-    function handleCreateRoom() {
+function handleCreateRoom() {
 
     if (creatingRoom) return;
 
     setCreatingRoom(true);
 
-    socket.emit("create-room", { id: deviceId, name: deviceName, type: "pc" });
+    socket.emit("create-room", { id: deviceId, name: deviceName, type: deviceType });
 
     setTimeout(() => {
 
@@ -134,6 +135,15 @@ function handleUndo() {
 
     }, 700);
 
+}
+
+function handleJoinRoom(code: string) {
+    if (creatingRoom) return;
+    setCreatingRoom(true);
+    socket.emit("join-room", {
+        code,
+        device: { id: deviceId, name: deviceName, type: deviceType },
+    });
 }
 
 function addTableItem(file: File, x: number, y: number, parentId: string | null = null) {
@@ -339,7 +349,14 @@ function handleDownload(item: TableItem) {
 
     setHasRoom(true);
 
+    setCreatingRoom(false);
+
 });
+
+    socket.on("join-error", () => {
+        setCreatingRoom(false);
+        window.dispatchEvent(new CustomEvent("droply-toast", { detail: "No encontramos esa mesa. Revisa el código." }));
+    });
 
 
 
@@ -519,6 +536,8 @@ socket.on("download-unavailable", ({ itemId }: { itemId: string }) => {
 
         socket.off("joined-room");
 
+        socket.off("join-error");
+
         socket.off("receiver-connected");
         socket.off("room-devices");
         socket.off("room-items");
@@ -615,11 +634,26 @@ useEffect(() => {
         recordActivity(`La descarga de ${fileEvent.detail?.name || "un archivo"} fue rechazada por integridad`);
     }
 
+    function handleConnectionFailure(event: Event) {
+        const detail = (event as CustomEvent<{ relayAvailable?: boolean }>).detail;
+        downloadingItemRef.current = null;
+        activeTransferItemRef.current = null;
+        setDownloadItemId(null);
+        setDownloadProgress(0);
+        setDownloadComplete(false);
+        window.dispatchEvent(new CustomEvent("droply-toast", {
+            detail: detail?.relayAvailable
+                ? "No pudimos establecer la conexión directa. Intenta nuevamente."
+                : "Esta red necesita el servidor TURN para descargar. Falta configurarlo en Droply.",
+        }));
+    }
+
     window.addEventListener(
         "file-ready",
         handleFileReady
     );
     window.addEventListener("file-integrity-error", handleIntegrityError);
+    window.addEventListener("peer-connection-failed", handleConnectionFailure);
 
     return () => {
 
@@ -632,6 +666,7 @@ useEffect(() => {
             handleFileReady
         );
         window.removeEventListener("file-integrity-error", handleIntegrityError);
+        window.removeEventListener("peer-connection-failed", handleConnectionFailure);
 
     };
 
@@ -672,6 +707,7 @@ useEffect(() => {
     downloadProgress={downloadProgress}
     downloadComplete={downloadComplete}
     onCreateRoom={handleCreateRoom}
+    onJoinRoom={handleJoinRoom}
     onAddFile={addTableItem}
     onDownload={handleDownload}
     onMoveItem={handleMoveItem}

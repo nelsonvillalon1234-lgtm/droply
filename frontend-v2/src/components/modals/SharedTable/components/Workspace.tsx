@@ -17,7 +17,7 @@ type Props = {
     downloadProgress: number; downloadComplete: boolean; messages: ChatMessage[];
     onCancelDownload: () => void;
     onMoveItem: (item: TableItemType, x: number, y: number, parentId?: string | null) => void;
-    onCreateRoom: () => void; onAddFile: (file: File, x: number, y: number, parentId?: string | null) => void;
+    onCreateRoom: () => void; onJoinRoom: (code: string) => void; onAddFile: (file: File, x: number, y: number, parentId?: string | null) => void;
     onDownload: (item: TableItemType) => void; onSendMessage: (text: string) => void;
     onCreateWorkspaceItem: (type: "folder" | "note", name: string, x: number, y: number, content?: string, parentId?: string | null) => void;
     activity: ActivityItem[]; canUndo: boolean; onUndo: () => void;
@@ -32,11 +32,12 @@ type Creator = { type: "folder" | "note"; clientX: number; clientY: number; x: n
 
 export default function Workspace(props: Props) {
     const { hasRoom, creatingRoom, roomCode, showMenu, devices, items, downloadItemId,
-        downloadProgress, downloadComplete, messages, onCreateRoom, onAddFile, onDownload,
+        downloadProgress, downloadComplete, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload,
         onMoveItem, onCancelDownload, onSendMessage, onCreateWorkspaceItem,
         activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem } = props;
     const viewportRef = useRef<HTMLDivElement>(null);
     const panRef = useRef<{ x: number; y: number; cameraX: number; cameraY: number } | null>(null);
+    const pinchRef = useRef<{ distance: number; zoom: number; worldX: number; worldY: number } | null>(null);
     const [camera, setCamera] = useState<Camera>({ x: 220, y: 140, zoom: 1 });
     const [query, setQuery] = useState("");
     const [contextMenu, setContextMenu] = useState<ContextMenu>(null);
@@ -82,6 +83,63 @@ export default function Workspace(props: Props) {
         };
         window.addEventListener("wheel", handleWheel, { passive: false, capture: true });
         return () => window.removeEventListener("wheel", handleWheel, { capture: true });
+    }, [hasRoom]);
+
+    useEffect(() => {
+        const viewport = viewportRef.current;
+        if (!hasRoom || !viewport) return;
+
+        const distance = (touches: TouchList) => Math.hypot(
+            touches[0].clientX - touches[1].clientX,
+            touches[0].clientY - touches[1].clientY
+        );
+        const midpoint = (touches: TouchList) => ({
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2,
+        });
+        const handleTouchStart = (event: TouchEvent) => {
+            if (event.touches.length !== 2) return;
+            event.preventDefault();
+            panRef.current = null;
+            const rect = viewport.getBoundingClientRect();
+            const point = midpoint(event.touches);
+            setCamera(current => {
+                pinchRef.current = {
+                    distance: distance(event.touches),
+                    zoom: current.zoom,
+                    worldX: (point.x - rect.left - current.x) / current.zoom,
+                    worldY: (point.y - rect.top - current.y) / current.zoom,
+                };
+                return current;
+            });
+        };
+        const handleTouchMove = (event: TouchEvent) => {
+            const pinch = pinchRef.current;
+            if (!pinch || event.touches.length !== 2) return;
+            event.preventDefault();
+            const rect = viewport.getBoundingClientRect();
+            const point = midpoint(event.touches);
+            const zoom = Math.max(.35, Math.min(2.2, pinch.zoom * distance(event.touches) / Math.max(1, pinch.distance)));
+            setCamera(clampCamera({
+                zoom,
+                x: point.x - rect.left - pinch.worldX * zoom,
+                y: point.y - rect.top - pinch.worldY * zoom,
+            }));
+        };
+        const handleTouchEnd = (event: TouchEvent) => {
+            if (event.touches.length < 2) pinchRef.current = null;
+        };
+
+        viewport.addEventListener("touchstart", handleTouchStart, { passive: false });
+        viewport.addEventListener("touchmove", handleTouchMove, { passive: false });
+        viewport.addEventListener("touchend", handleTouchEnd);
+        viewport.addEventListener("touchcancel", handleTouchEnd);
+        return () => {
+            viewport.removeEventListener("touchstart", handleTouchStart);
+            viewport.removeEventListener("touchmove", handleTouchMove);
+            viewport.removeEventListener("touchend", handleTouchEnd);
+            viewport.removeEventListener("touchcancel", handleTouchEnd);
+        };
     }, [hasRoom]);
 
     function screenToWorld(clientX: number, clientY: number) {
@@ -135,7 +193,7 @@ export default function Workspace(props: Props) {
 
     return <main className="workspace" onClick={() => setContextMenu(null)}>
         <div className="workspace-background" />
-        {!hasRoom && <CenterAction creating={creatingRoom} onCreateRoom={onCreateRoom} />}
+        {!hasRoom && <CenterAction creating={creatingRoom} onCreateRoom={onCreateRoom} onJoinRoom={onJoinRoom} />}
         {hasRoom && <>
             <aside className="workspace-sidebar">
                 <div className="workspace-project"><span>✦</span><div><strong>Mesa {roomCode}</strong><small>{devices.length} conectado{devices.length === 1 ? "" : "s"}</small></div></div>
@@ -148,6 +206,7 @@ export default function Workspace(props: Props) {
                     <button className={view==="trash"?"is-active":""} onClick={()=>setView("trash")}><Trash2 size={17}/>Papelera</button>
                 </nav>
                 <div className="space-health"><strong>Disponibilidad</strong><span>● {Math.round((devices.length / 4) * 100)}% de la mesa conectada</span></div>
+                <small className="workspace-version">Droply beta · v0.4.0</small>
             </aside>
 
             <div className="workspace-search">
