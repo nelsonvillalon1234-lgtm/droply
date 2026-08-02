@@ -1,8 +1,13 @@
 type Room = {
     id: string;
     host: string;
-    guest?: string;
+    members: Set<string>;
+    purpose: "transfer" | "table";
+    maxMembers: number;
+    expiresAt: number | null;
+    locked: boolean;
 };
+import { randomInt } from "node:crypto";
 
 class RoomManager {
 
@@ -19,7 +24,7 @@ class RoomManager {
             code = "";
 
             for (let i = 0; i < 6; i++) {
-                code += chars[Math.floor(Math.random() * chars.length)];
+                code += chars[randomInt(chars.length)];
             }
 
         } while (this.rooms.has(code));
@@ -27,13 +32,18 @@ class RoomManager {
         return code;
     }
 
-    createRoom(hostSocketId: string) {
+    createRoom(hostSocketId: string, purpose: "transfer" | "table" = "table") {
 
         const code = this.generateCode();
 
         this.rooms.set(code, {
             id: code,
-            host: hostSocketId
+            host: hostSocketId,
+            members: new Set([hostSocketId]),
+            purpose,
+            maxMembers: purpose === "transfer" ? 2 : 4,
+            expiresAt: purpose === "transfer" ? Date.now() + 5 * 60_000 : null,
+            locked: false,
         });
 
         return code;
@@ -41,17 +51,31 @@ class RoomManager {
 
     joinRoom(code: string, guestSocketId: string) {
 
-        const room = this.rooms.get(code);
+        const room = this.getRoom(code);
 
         if (!room) return false;
 
-        room.guest = guestSocketId;
+        if (room.locked || room.members.size >= room.maxMembers) return false;
+        room.members.add(guestSocketId);
+        if (room.purpose === "transfer") room.locked = true;
 
         return true;
     }
 
     getRoom(code: string) {
-        return this.rooms.get(code);
+        const room = this.rooms.get(code);
+        if (room?.expiresAt && Date.now() >= room.expiresAt) {
+            this.rooms.delete(code);
+            return undefined;
+        }
+        return room;
+    }
+
+    leaveRoom(code: string, socketId: string) {
+        const room = this.rooms.get(code);
+        if (!room) return;
+        room.members.delete(socketId);
+        if (room.members.size === 0) this.rooms.delete(code);
     }
 
 }

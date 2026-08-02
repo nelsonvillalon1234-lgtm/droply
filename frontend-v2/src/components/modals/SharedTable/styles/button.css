@@ -1,0 +1,37 @@
+.create-room{
+
+    position:absolute;
+
+    left:50%;
+
+    top:42%;
+
+    transform:translate(-50%,-50%);
+
+    width:160px;
+
+    height:72px;
+
+    border:none;
+
+    border-radius:16px;
+
+    background:#5d5af3;
+
+    color:white;
+
+    font-size:22px;
+
+    cursor:pointer;
+
+    box-shadow:0 18px 35px rgba(0,0,0,.20);
+
+    transition:.25s;
+
+}
+
+.create-room:hover{
+
+    transform:translate(-50%,-50%) scale(1.04);
+
+}

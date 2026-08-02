@@ -1,0 +1,121 @@
+.connection-status{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:18px;
+
+    margin-top:28px;
+
+    padding:18px;
+
+    border-radius:18px;
+
+    border:1px solid rgba(0,0,0,.05);
+
+    transition:.25s;
+
+}
+
+.connection-status.connected{
+
+    background:#F4FFF8;
+
+    border-color:#D8F4E2;
+
+}
+
+.connection-status.waiting{
+
+    background:#FFFDF5;
+
+    border-color:#F6E8B5;
+
+}
+
+.status-icon{
+
+    width:48px;
+
+    height:48px;
+
+    border-radius:14px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    flex-shrink:0;
+
+}
+
+.connection-status.connected .status-icon{
+
+    background:#E8FFF0;
+
+    color:#18A957;
+
+}
+
+.connection-status.waiting .status-icon{
+
+    background:#FFF5D6;
+
+    color:#D89A00;
+
+}
+
+.status-text{
+
+    flex:1;
+
+}
+
+.status-text h4{
+
+    margin:0;
+
+    font-size:16px;
+
+    font-weight:700;
+
+    color:#1A1A1A;
+
+}
+
+.status-text p{
+
+    margin-top:4px;
+
+    color:#8A8FA3;
+
+    font-size:14px;
+
+    line-height:1.4;
+
+}
+
+.status-spin{
+
+    animation:spin 1s linear infinite;
+
+}
+
+@keyframes spin{
+
+    from{
+
+        transform:rotate(0deg);
+
+    }
+
+    to{
+
+        transform:rotate(360deg);
+
+    }
+
+}

@@ -1,0 +1,85 @@
+.shared-table-overlay{
+
+    position:fixed;
+    inset:0;
+
+    display:flex;
+    justify-content:center;
+    align-items:center;
+
+    backdrop-filter:blur(18px);
+    background:rgba(255,255,255,.12);
+
+    z-index:9999;
+
+}
+
+.shared-table-window{
+
+    position:relative;
+
+    width:95%;
+    height:92%;
+
+    background:white;
+
+    border-radius:38px;
+
+    overflow:hidden;
+
+    box-shadow:
+    0 25px 60px rgba(0,0,0,.15);
+
+}
+
+.shared-table-close{
+
+    position:absolute;
+
+    top:18px;
+
+    right:22px;
+
+    width:52px;
+
+    height:52px;
+
+    border:none;
+
+    border-radius:50%;
+
+    cursor:pointer;
+
+    font-size:24px;
+
+    color:white;
+
+    background:#5B56F6;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    transition:.25s;
+
+    z-index:100;
+
+    box-shadow:
+        0 12px 35px rgba(91,86,246,.22);
+
+}
+
+.shared-table-close:hover{
+
+    transform:scale(1.08);
+
+}
+
+/* Droply visual system — keeps all existing room and transfer behavior intact. */
+.shared-table-overlay { padding: 18px; background: rgba(23,32,51,.22); backdrop-filter: blur(18px); }
+.shared-table-window { width: min(1540px, 100%); height: min(960px, 100%); border: 1px solid rgba(255,255,255,.72); border-radius: 30px; box-shadow: 0 35px 100px rgba(23,32,51,.24); }
+.shared-table-close { top: 16px; right: 18px; width: 46px; height: 46px; color: var(--ink); background: rgba(255,255,255,.92); border: 1px solid var(--line); box-shadow: 0 8px 22px rgba(23,32,51,.09); }
+.shared-table-close:hover { color: #fff; background: var(--coral); transform: rotate(4deg) scale(1.04); }
+@media (max-width: 700px) { .shared-table-overlay { padding: 0; } .shared-table-window { width: 100%; height: 100%; border: 0; border-radius: 0; } .shared-table-close { top: 12px; right: 12px; width: 42px; height: 42px; } }
