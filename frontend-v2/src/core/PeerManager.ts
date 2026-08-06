@@ -234,7 +234,6 @@ this.peer.onconnectionstatechange = async () => {
 
 
 
-
 let received: ArrayBuffer[] = [];
 let fileName = "";
 let totalSize = 0;
@@ -242,6 +241,7 @@ let totalSize = 0;
 let receivedSize = 0;
 let receivedHash = new Uint8Array(32);
 let hashQueue: Promise<void> = Promise.resolve();
+let lastReceiveProgress = -1;
 
 this.channel.onmessage = ({ data }) => {
 
@@ -297,6 +297,8 @@ this.channel.onmessage = ({ data }) => {
 
        if (message.type === "start") {
 
+    lastReceiveProgress = -1;
+
     fileName = message.name;
 
     received = [];
@@ -308,6 +310,8 @@ this.channel.onmessage = ({ data }) => {
     receivedHash = new Uint8Array(32);
 
     hashQueue = Promise.resolve();
+
+    lastReceiveProgress = -1;
 
     return;
 }
@@ -391,6 +395,12 @@ this.channel.onmessage = ({ data }) => {
 
     );
 
+    completedChunks.length = 0;
+received = [];
+receivedSize = 0;
+totalSize = 0;
+fileName = "";
+
     this.channel?.send(JSON.stringify({ type: "file-ack" }));
 
     })();
@@ -400,31 +410,35 @@ this.channel.onmessage = ({ data }) => {
 
     }
 
-    console.log("📦", received.length + 1);
+    
 
     if (data instanceof ArrayBuffer) {
 
     received.push(data);
 
-    const hashChunk = data;
-    hashQueue = hashQueue.then(async () => {
-        receivedHash = await advanceTransferHash(receivedHash, hashChunk);
-    });
+const hashChunk = data;
+hashQueue = hashQueue.then(async () => {
+    receivedHash = await advanceTransferHash(receivedHash, hashChunk);
+});
 
-    receivedSize += data.byteLength;
+receivedSize += data.byteLength;
 
-    const progress = Math.floor(
+const progress =
+    totalSize > 0
+        ? Math.floor((receivedSize / totalSize) * 100)
+        : 0;
 
-        (receivedSize / totalSize) * 100
+if (progress !== lastReceiveProgress) {
+    lastReceiveProgress = progress;
 
-    );
-
-    console.log(
-
-        `📥 Descargando: ${progress}%`
-
-    );
     this.onReceiveProgressCallback?.(progress);
+
+    if (progress % 5 === 0 || progress === 100) {
+        console.log(`📥 Descargando: ${progress}%`);
+    }
+}
+
+    
 
 }
 

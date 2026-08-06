@@ -23,7 +23,9 @@ type Props = {
     onCancelDownload: () => void;
     onMoveItem: (item: TableItemType, x: number, y: number, parentId?: string | null) => void;
     onCreateRoom: () => void; onJoinRoom: (code: string) => void; onAddFile: (file: File, x: number, y: number, parentId?: string | null, handle?: PersistedFileHandle | null) => void;
-    onDownload: (item: TableItemType) => void; onSendMessage: (text: string) => void;
+    onDownload: (item: TableItemType) => void;
+    onPreviewItem: (item: TableItemType) => void;
+    onSendMessage: (text: string) => void;
     onRelinkFile: (item: TableItemType, file: File, handle?: PersistedFileHandle | null) => void;
     hasSourcesToRestore: boolean;
     onRestoreSources: () => void;
@@ -58,7 +60,7 @@ const MINIMAP_HEIGHT = 132;
 
 export default function Workspace(props: Props) {
     const { hasRoom, creatingRoom, roomCode, showMenu, devices, items, downloadItemId,
-        downloadProgress, downloadComplete, downloadPhase, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload, onRelinkFile,
+        downloadProgress, downloadComplete, downloadPhase, messages, onCreateRoom, onJoinRoom, onAddFile, onDownload, onPreviewItem, onRelinkFile,
         onMoveItem, onCancelDownload, onSendMessage, onCreateWorkspaceItem,
         activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect, recentRooms,
         sharedMedia, onCreateMedia, onMediaControl, onMediaMove, onMediaRemove,
@@ -401,7 +403,7 @@ export default function Workspace(props: Props) {
                 onDrop={e => { e.preventDefault(); const file=e.dataTransfer.files[0]; if(file){ const p=screenToWorld(e.clientX,e.clientY); onAddFile(file,p.x,p.y,currentFolder); } }}
                 onContextMenu={e => { e.preventDefault(); const p=screenToWorld(e.clientX,e.clientY); setContextMenu({clientX:e.clientX,clientY:e.clientY,...p}); }}>
                 <div className="workspace-world" style={{transform:`translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})`}}>
-                    {(view==="files"||view==="folders"||view==="shared")&&displayedItems.map(item => { const boundedItem={...item,...clampWorldPoint(item)}; return <TableItem key={item.id} item={boundedItem} scale={camera.zoom} onDownload={onDownload} onMove={moveItem}
+                    {(view==="files"||view==="folders"||view==="shared")&&displayedItems.map(item => { const boundedItem={...item,...clampWorldPoint(item)}; return <TableItem key={item.id} item={boundedItem} scale={camera.zoom} onDownload={onDownload} onPreview={onPreviewItem} onMove={moveItem}
                         onOpenFolder={id => setCurrentFolder(id)} onCancelDownload={onCancelDownload}
                         selected={selectedId===item.id} onSelect={entry=>setSelectedId(entry.id)} onDelete={onDeleteItem} onRename={onRenameItem}
                         canRelink={item.type==="file"&&item.ownerId===deviceId&&!item.available} onRelink={chooseRelinkFile}

@@ -7,11 +7,18 @@ import "./../styles/tableItem.css";
 
 
 import {
+    Archive,
     Check,
+    Code2,
     Download,
+    FileAudio,
+    FileImage,
+    FileSpreadsheet,
     FileText,
+    FileVideo,
     Folder,
     Pencil,
+    Presentation,
     StickyNote,
     Trash2,
     RefreshCw,
@@ -20,14 +27,76 @@ import {
 
 import type { TableItem as TableItemType, TransferPhase } from "../types";
 
+function getFileIcon(item: TableItemType) {
+    if (item.type === "folder") return Folder;
+    if (item.type === "note") return StickyNote;
 
+    const extension = item.extension.toLowerCase();
+
+    const imageExtensions = ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "avif"];
+    const videoExtensions = ["mp4", "webm", "mov", "mkv", "avi", "m4v"];
+    const audioExtensions = ["mp3", "wav", "ogg", "m4a", "aac", "flac"];
+    const compressedExtensions = ["zip", "rar", "7z", "tar", "gz"];
+    const codeExtensions = [
+        "js", "jsx", "ts", "tsx", "html", "css", "json", "xml",
+        "py", "java", "php", "rb", "go", "rs", "cpp", "c", "cs"
+    ];
+    const spreadsheetExtensions = ["xls", "xlsx", "csv", "ods"];
+    const presentationExtensions = ["ppt", "pptx", "key", "odp"];
+
+    if (extension === "pdf") return FileText;
+    if (imageExtensions.includes(extension)) return FileImage;
+    if (videoExtensions.includes(extension)) return FileVideo;
+    if (audioExtensions.includes(extension)) return FileAudio;
+    if (compressedExtensions.includes(extension)) return Archive;
+    if (codeExtensions.includes(extension)) return Code2;
+    if (spreadsheetExtensions.includes(extension)) return FileSpreadsheet;
+    if (presentationExtensions.includes(extension)) return Presentation;
+
+    return FileText;
+}
+
+function getFileKindLabel(item: TableItemType) {
+    if (item.type === "folder") return "Carpeta";
+    if (item.type === "note") return "Nota de texto";
+
+    const extension = item.extension.toLowerCase();
+
+    const imageExtensions = ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "avif"];
+    const videoExtensions = ["mp4", "webm", "mov", "mkv", "avi", "m4v"];
+    const audioExtensions = ["mp3", "wav", "ogg", "m4a", "aac", "flac"];
+    const compressedExtensions = ["zip", "rar", "7z", "tar", "gz"];
+    const codeExtensions = [
+        "js", "jsx", "ts", "tsx", "html", "css", "json", "xml",
+        "py", "java", "php", "rb", "go", "rs", "cpp", "c", "cs"
+    ];
+    const spreadsheetExtensions = ["xls", "xlsx", "csv", "ods"];
+    const presentationExtensions = ["ppt", "pptx", "key", "odp"];
+    const documentExtensions = ["doc", "docx", "txt", "rtf", "odt"];
+
+    if (extension === "pdf") return "PDF";
+    if (imageExtensions.includes(extension)) return "Imagen";
+    if (videoExtensions.includes(extension)) return "Video";
+    if (audioExtensions.includes(extension)) return "Audio";
+    if (compressedExtensions.includes(extension)) return "Comprimido";
+    if (codeExtensions.includes(extension)) return "Código";
+    if (spreadsheetExtensions.includes(extension)) return "Hoja de cálculo";
+    if (presentationExtensions.includes(extension)) return "Presentación";
+    if (documentExtensions.includes(extension)) return "Documento";
+
+    return extension ? extension.toUpperCase() : "Archivo";
+}
 
 type Props = {
     item: TableItemType;
 
     onDownload: (
-        item: TableItemType
-    ) => void;
+    item: TableItemType
+) => void;
+
+onPreview: (
+    item: TableItemType
+) => void;
 
     downloadProgress?: number;
 
@@ -57,6 +126,8 @@ export default function TableItem({
     item,
 
     onDownload,
+
+    onPreview,
 
     onMove,
 
@@ -94,12 +165,8 @@ const dragRef = useRef<{
 
 const movedRef = useRef(false);
 
-    const Icon =
-        item.type === "folder"
-            ? Folder
-            : item.type === "note"
-            ? StickyNote
-            : FileText;
+    const Icon = getFileIcon(item);
+    const fileKindLabel = getFileKindLabel(item);
 
     const downloading =
         downloadProgress !== undefined &&
@@ -287,10 +354,10 @@ setDragPosition({
 
     }}
     onDoubleClick={() => {
-        if (item.type === "folder") onOpenFolder(item.id);
-        else if (canRelink) onRelink(item);
-        else onDownload(item);
-    }}
+    if (item.type === "folder") onOpenFolder(item.id);
+    else if (canRelink) onRelink(item);
+    else onPreview(item);
+}}
 >
 
             {selected && <div className="table-item-actions" onPointerDown={event => event.stopPropagation()}>
@@ -378,10 +445,11 @@ setDragPosition({
             <div className="table-item-details">
 
     <span>
-        {item.type === "folder" ? "Carpeta" : item.type === "note" ? "Nota de texto" : item.extension.toUpperCase()}
-        {" · "}
-        {formattedSize}
-    </span>
+    {fileKindLabel}
+    {item.type === "file" && item.extension ? ` · ${item.extension.toUpperCase()}` : ""}
+    {" · "}
+    {formattedSize}
+</span>
 
     <span className="table-item-owner">
 

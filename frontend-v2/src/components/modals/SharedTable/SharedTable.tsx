@@ -13,13 +13,31 @@ import deviceId, {
 } from "../../../services/device";
 import TopBar from "./components/TopBar";
 import Workspace from "./components/Workspace";
+import MediaPreview, { type MediaPreviewFile } from "./components/MediaPreview";
+import LargeFilePrompt from "./components/LargeFilePrompt";
 import { useRef } from "react";
 import PeerManager from "../../../core/PeerManager";
 import type { RecentRoom } from "./components/CenterAction";
 import { getFileHandle, saveFileHandle, type PersistedFileHandle } from "../../../services/fileSourceStore";
 
+
 const RECENT_TABLES_KEY = "droply-recent-tables";
 const RECENT_TABLE_TTL = 24 * 60 * 60 * 1000;
+const LARGE_FILE_WARNING_SIZE = 500 * 1024 * 1024;
+const HUGE_FILE_WARNING_SIZE = 2 * 1024 * 1024 * 1024;
+const KEEP_RECEIVED_FILE_IN_MEMORY_LIMIT = 500 * 1024 * 1024;
+
+function formatSafeFileSize(size: number) {
+    if (size >= 1024 * 1024 * 1024) {
+        return `${(size / 1024 / 1024 / 1024).toFixed(2)} GB`;
+    }
+
+    if (size >= 1024 * 1024) {
+        return `${(size / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
 
 type WritableFileHandle = {
     createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }>;
@@ -107,6 +125,9 @@ const downloadingItemRef =
 const activeTransferItemRef =
     useRef<string | null>(null);
 
+const pendingPreviewItemRef = useRef<string | null>(null);
+const itemsRef = useRef<TableItem[]>([]);
+
 const [devices, setDevices] = useState<DeviceType[]>([
     {
         id: deviceId,
@@ -122,8 +143,13 @@ const [hasSourcesToRestore, setHasSourcesToRestore] = useState(false);
 const [messages, setMessages] = useState<ChatMessage[]>([]);
 const [activity, setActivity] = useState<ActivityItem[]>([]);
 const [sharedMedia, setSharedMedia] = useState<SharedMedia | null>(null);
+const [mediaPreview, setMediaPreview] = useState<MediaPreviewFile | null>(null);
+const [largeFilePromptItem, setLargeFilePromptItem] = useState<TableItem | null>(null);
 const undoRef = useRef<TableItem | null>(null);
 const knownDevicesRef = useRef<DeviceType[]>([]);
+useEffect(() => {
+    itemsRef.current = items;
+}, [items]);
 
 async function chooseDownloadFolder() {
     try {
@@ -460,6 +486,8 @@ function handleCancelDownload() {
 
     setDownloadItemId(null);
 
+    pendingPreviewItemRef.current = null;
+
     setDownloadProgress(0);
 
     setDownloadComplete(false);
@@ -467,42 +495,182 @@ function handleCancelDownload() {
 
 }
 
+function getPreviewKind(item: TableItem, file: File): MediaPreviewFile["kind"] | null {
+    const extension = item.extension.toLowerCase();
+    const mimeType = file.type.toLowerCase();
 
-function handleDownload(item: TableItem) {
+    const imageExtensions = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"];
+    const videoExtensions = ["mp4", "webm", "m4v"];
+    const audioExtensions = ["mp3", "wav", "ogg", "m4a", "aac"];
 
+    if (extension === "pdf" || mimeType === "application/pdf") return "pdf";
+    if (imageExtensions.includes(extension) || mimeType.startsWith("image/")) return "image";
+    if (videoExtensions.includes(extension) || mimeType.startsWith("video/")) return "video";
+    if (audioExtensions.includes(extension) || mimeType.startsWith("audio/")) return "audio";
+
+    return null;
+}
+
+function closeMediaPreview() {
+    if (mediaPreview) {
+        URL.revokeObjectURL(mediaPreview.url);
+    }
+
+    setMediaPreview(null);
+}
+
+function openLocalPreview(item: TableItem, file: File) {
+    const kind = getPreviewKind(item, file);
+
+    if (!kind) {
+        window.dispatchEvent(
+            new CustomEvent("droply-toast", {
+                detail: "Este tipo de archivo todavía no tiene vista previa.",
+            })
+        );
+
+        return;
+    }
+
+    if (mediaPreview) {
+        URL.revokeObjectURL(mediaPreview.url);
+    }
+
+    setMediaPreview({
+        itemId: item.id,
+        url: URL.createObjectURL(file),
+        name: item.name,
+        extension: item.extension || "archivo",
+        mimeType: file.type,
+        kind,
+    });
+}
+
+function getPreviewableItems() {
+    return items.filter((item) => {
+        if (item.type !== "file") return false;
+        if (item.deleted) return false;
+
+        const file = files.current.get(item.id);
+        if (!file) return false;
+
+        return Boolean(getPreviewKind(item, file));
+    });
+}
+
+function shouldPromptLargeFileDownload(item: TableItem) {
+    return item.type === "file" && item.size >= LARGE_FILE_WARNING_SIZE;
+}
+
+function openLargeFilePrompt(item: TableItem) {
+    setLargeFilePromptItem(item);
+}
+
+function closeLargeFilePrompt() {
+    setLargeFilePromptItem(null);
+    pendingPreviewItemRef.current = null;
+}
+
+function handlePreviewItem(item: TableItem) {
     if (item.type !== "file") return;
 
     const file = files.current.get(item.id);
 
-    if (file) {
+    if (!file) {
+    pendingPreviewItemRef.current = item.id;
 
-        console.log("📤 Soy el propietario");
+    window.dispatchEvent(
+        new CustomEvent("droply-toast", {
+            detail: "Descargando para abrir vista previa.",
+        })
+    );
 
-        return;
+    handleDownload(item);
+    return;
+}
 
-    }
+    openLocalPreview(item, file);
+}
+
+function handlePreviewNavigation(direction: "previous" | "next") {
+    if (!mediaPreview) return;
+
+    const previewableItems = getPreviewableItems();
+
+    if (previewableItems.length <= 1) return;
+
+    const currentIndex = previewableItems.findIndex(
+        (item) => item.id === mediaPreview.itemId
+    );
+
+    if (currentIndex === -1) return;
+
+    const nextIndex =
+        direction === "next"
+            ? (currentIndex + 1) % previewableItems.length
+            : (currentIndex - 1 + previewableItems.length) % previewableItems.length;
+
+    const nextItem = previewableItems[nextIndex];
+    const nextFile = files.current.get(nextItem.id);
+
+    if (!nextFile) return;
+
+    openLocalPreview(nextItem, nextFile);
+}
+
+function startDownload(item: TableItem) {
+    if (item.type !== "file") return;
 
     downloadingItemRef.current = item.id;
-
     activeTransferItemRef.current = item.id;
 
     setDownloadItemId(item.id);
-
     setDownloadProgress(0);
-
     setDownloadComplete(false);
     setDownloadPhase("searching");
 
     console.log("📥 Solicitando descarga");
 
     socket.emit("download-request", {
-
         itemId: item.id,
-
         ownerId: item.ownerId,
-
     });
+}
 
+function handleConfirmLargeFileDownload() {
+    const item = largeFilePromptItem;
+    setLargeFilePromptItem(null);
+
+    if (!item) return;
+
+    startDownload(item);
+}
+
+function handleDownload(item: TableItem) {
+    if (item.type !== "file") return;
+
+    const file = files.current.get(item.id);
+
+    if (file) {
+        console.log("💾 Archivo disponible localmente, guardando otra vez:", file.name);
+
+        const url = URL.createObjectURL(file);
+
+        void saveReceivedFile(url, file.name).finally(() => {
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 60000);
+        });
+
+        return;
+    }
+
+    if (shouldPromptLargeFileDownload(item)) {
+        openLargeFilePrompt(item);
+        return;
+    }
+
+    startDownload(item);
 }
 
 
@@ -784,6 +952,7 @@ socket.on("download-unavailable", ({ itemId, reason }: { itemId: string; reason?
     downloadingItemRef.current = null;
     activeTransferItemRef.current = null;
     setDownloadItemId(null);
+    pendingPreviewItemRef.current = null;
     setDownloadProgress(0);
     setDownloadComplete(false);
     setDownloadPhase("idle");
@@ -873,14 +1042,56 @@ useEffect(() => {
 
         await saveReceivedFile(fileEvent.detail.url, fileEvent.detail.name);
 
-        files.current.set(completedItemId, new File([fileEvent.detail.blob], fileEvent.detail.name, {
-            type: fileEvent.detail.blob.type || "application/octet-stream",
-            lastModified: Date.now(),
-        }));
+        const receivedBlob = fileEvent.detail.blob;
+const shouldKeepInMemory =
+    receivedBlob.size <= KEEP_RECEIVED_FILE_IN_MEMORY_LIMIT;
+
+let receivedFile: File | null = null;
+
+if (shouldKeepInMemory) {
+    receivedFile = new File([receivedBlob], fileEvent.detail.name, {
+        type: receivedBlob.type || "application/octet-stream",
+        lastModified: Date.now(),
+    });
+
+    files.current.set(completedItemId, receivedFile);
+} else {
+    files.current.delete(completedItemId);
+
+    window.dispatchEvent(
+        new CustomEvent("droply-toast", {
+            detail: "Archivo grande guardado. Liberamos memoria para evitar que el navegador se sature.",
+        })
+    );
+}
+
+if (pendingPreviewItemRef.current === completedItemId) {
+    const previewItem = itemsRef.current.find(
+        (item) => item.id === completedItemId
+    );
+
+    if (previewItem && receivedFile) {
+        openLocalPreview(
+            { ...previewItem, available: true },
+            receivedFile
+        );
+    } else if (previewItem && !receivedFile) {
+        window.dispatchEvent(
+            new CustomEvent("droply-toast", {
+                detail: "Archivo grande guardado. No se abrió preview automático para proteger la memoria.",
+            })
+        );
+    }
+
+    pendingPreviewItemRef.current = null;
+}
         setItems(current => current.map(item => item.id === completedItemId
-            ? { ...item, available: true }
-            : item));
-        socket.emit("download-source-added", { itemId: completedItemId });
+    ? { ...item, available: true }
+    : item));
+
+if (fileEvent.detail.blob.size <= KEEP_RECEIVED_FILE_IN_MEMORY_LIMIT) {
+    socket.emit("download-source-added", { itemId: completedItemId });
+}
 
         setDownloadComplete(true);
         setDownloadPhase("complete");
@@ -902,6 +1113,7 @@ useEffect(() => {
         const fileEvent = event as CustomEvent<{ name?: string }>;
         downloadingItemRef.current = null;
         activeTransferItemRef.current = null;
+        pendingPreviewItemRef.current = null;
         PeerManager.reset();
         setDownloadItemId(null);
         setDownloadProgress(0);
@@ -914,6 +1126,7 @@ useEffect(() => {
         const detail = (event as CustomEvent<{ relayAvailable?: boolean }>).detail;
         downloadingItemRef.current = null;
         activeTransferItemRef.current = null;
+        pendingPreviewItemRef.current = null;
         PeerManager.reset();
         setDownloadItemId(null);
         setDownloadProgress(0);
@@ -989,6 +1202,7 @@ useEffect(() => {
     onJoinRoom={handleJoinRoom}
     onAddFile={addTableItem}
     onDownload={handleDownload}
+    onPreviewItem={handlePreviewItem}
     onRelinkFile={handleRelinkFile}
     hasSourcesToRestore={hasSourcesToRestore}
     onRestoreSources={handleRestoreSources}
@@ -1016,6 +1230,24 @@ useEffect(() => {
     onChooseDownloadFolder={chooseDownloadFolder}
     onDismissDownloadFolder={() => setShowDownloadFolderPrompt(false)}
 />
+<LargeFilePrompt
+    item={largeFilePromptItem}
+    onConfirm={handleConfirmLargeFileDownload}
+    onCancel={closeLargeFilePrompt}
+/>
+
+
+{mediaPreview && (
+    <MediaPreview
+        preview={mediaPreview}
+        onClose={closeMediaPreview}
+        onPrevious={() => handlePreviewNavigation("previous")}
+        onNext={() => handlePreviewNavigation("next")}
+        canGoPrevious={getPreviewableItems().length > 1}
+        canGoNext={getPreviewableItems().length > 1}
+    />
+)}
+
                 <button
 
                     className="shared-table-close"

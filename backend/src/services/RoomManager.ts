@@ -9,7 +9,7 @@ type Room = {
 };
 import { randomInt } from "node:crypto";
 
-const TABLE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const TABLE_RETENTION_MS = 2 * 60 * 60 * 1000;
 
 class RoomManager {
 
@@ -83,6 +83,16 @@ class RoomManager {
             }
         }
         return expired;
+    }
+
+        resetRoomMembers(code: string) {
+        const room = this.getRoom(code);
+
+        if (!room) return false;
+
+        room.members = new Set();
+
+        return true;
     }
 
     leaveRoom(code: string, socketId: string) {

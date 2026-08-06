@@ -108,12 +108,22 @@ export default function registerRoomEvents(socket: Socket) {
         if (rawDevice && !device) return socket.emit("security-error", "Dispositivo invalido");
 
         const requestedRoom = RoomManager.getRoom(code);
-        if (!requestedRoom) {
-            roomDevices.delete(code);
-            roomItems.delete(code);
-            roomMedia.delete(code);
-        }
-        let restoredExistingDevice = false;
+
+if (!requestedRoom) {
+    roomDevices.delete(code);
+    roomItems.delete(code);
+    roomMedia.delete(code);
+}
+
+if (requestedRoom?.purpose === "table") {
+    const connectedDevices = roomDevices.get(code);
+
+    if (!connectedDevices || connectedDevices.size === 0) {
+        RoomManager.resetRoomMembers(code);
+    }
+}
+
+let restoredExistingDevice = false;
         if (requestedRoom?.purpose === "table" && device) {
             const members = roomDevices.get(code);
             const previousConnection = [...(members?.entries() ?? [])]
