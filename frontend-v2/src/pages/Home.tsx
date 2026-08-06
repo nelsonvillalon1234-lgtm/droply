@@ -142,17 +142,25 @@ function handleSelectPanel(panel: string) {
 
     const room = params.get("room");
 
-    if (room) {
-        console.log("📱 Abriendo modo receptor:", room);
+if (room) {
+    const cleanRoom = room.trim().toUpperCase();
 
-        setRoomFromUrl(room);
+    console.log("📱 Abriendo modo receptor:", cleanRoom);
 
-        setTransferMode("receiver");
+    setRoomFromUrl(cleanRoom);
 
-        setTransferOpen(true);
+    setTransferMode("receiver");
 
-        return;
-    }
+    setTransferOpen(true);
+
+    window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname
+    );
+
+    return;
+}
 
     const tableCode = params.get("table")?.trim().toUpperCase();
 
@@ -165,8 +173,13 @@ function handleSelectPanel(panel: string) {
     setSharedTableCodeFromUrl(tableCode);
 
     setSharedTableOpen(true);
-}, [location]);
 
+    window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname
+    );
+}, [location]);
     return (
 
         <div className="app">
