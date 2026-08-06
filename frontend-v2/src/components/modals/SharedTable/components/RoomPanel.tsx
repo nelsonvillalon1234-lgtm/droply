@@ -30,14 +30,16 @@ export default function RoomPanel({
     }
 
     function handleCopyLink() {
+    const link = `${window.location.origin}/?table=${roomCode}`;
 
-        navigator.clipboard.writeText(
+    navigator.clipboard.writeText(link);
 
-            `${window.location.origin}/join/${roomCode}`
-
-        );
-
-    }
+    window.dispatchEvent(
+        new CustomEvent("droply-toast", {
+            detail: "Enlace de la mesa copiado.",
+        })
+    );
+}
 
     return (
 

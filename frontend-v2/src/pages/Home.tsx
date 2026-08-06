@@ -39,6 +39,7 @@ const [sharedTableOpen, setSharedTableOpen] =
     const [transferMode, setTransferMode] = useState<"sender" | "receiver">("sender");
 
 const [roomFromUrl, setRoomFromUrl] = useState("");
+const [sharedTableCodeFromUrl, setSharedTableCodeFromUrl] = useState("");
     //LO PUEDO USAR EN EL FUTURO const [transferOpen, setTransferOpen] = useState(false);
 
 type HistoryItem = {
@@ -137,21 +138,33 @@ function handleSelectPanel(panel: string) {
 }
 
     useEffect(() => {
-
     const params = new URLSearchParams(location.search);
 
     const room = params.get("room");
 
-    if (!room) return;
+    if (room) {
+        console.log("📱 Abriendo modo receptor:", room);
 
-    console.log("📱 Abriendo modo receptor:", room);
+        setRoomFromUrl(room);
 
-    setRoomFromUrl(room);
+        setTransferMode("receiver");
 
-    setTransferMode("receiver");
+        setTransferOpen(true);
 
-    setTransferOpen(true);
+        return;
+    }
 
+    const tableCode = params.get("table")?.trim().toUpperCase();
+
+    if (!tableCode || tableCode.length !== 6) return;
+
+    console.log("🌐 Abriendo mesa compartida:", tableCode);
+
+    sessionStorage.setItem("droply-active-table", tableCode);
+
+    setSharedTableCodeFromUrl(tableCode);
+
+    setSharedTableOpen(true);
 }, [location]);
 
     return (
@@ -246,8 +259,12 @@ function handleSelectPanel(panel: string) {
     }}
 />
 <SharedTable
+    key={sharedTableCodeFromUrl || "shared-table"}
     isOpen={sharedTableOpen}
-    onClose={() => setSharedTableOpen(false)}
+    onClose={() => {
+        setSharedTableOpen(false);
+        setSharedTableCodeFromUrl("");
+    }}
 />
 
 {sharedTableOpen && !profileReady && (
