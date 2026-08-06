@@ -24,20 +24,7 @@ import { getFileHandle, saveFileHandle, type PersistedFileHandle } from "../../.
 const RECENT_TABLES_KEY = "droply-recent-tables";
 const RECENT_TABLE_TTL = 24 * 60 * 60 * 1000;
 const LARGE_FILE_WARNING_SIZE = 500 * 1024 * 1024;
-const HUGE_FILE_WARNING_SIZE = 2 * 1024 * 1024 * 1024;
 const KEEP_RECEIVED_FILE_IN_MEMORY_LIMIT = 500 * 1024 * 1024;
-
-function formatSafeFileSize(size: number) {
-    if (size >= 1024 * 1024 * 1024) {
-        return `${(size / 1024 / 1024 / 1024).toFixed(2)} GB`;
-    }
-
-    if (size >= 1024 * 1024) {
-        return `${(size / 1024 / 1024).toFixed(1)} MB`;
-    }
-
-    return `${Math.max(1, Math.round(size / 1024))} KB`;
-}
 
 type WritableFileHandle = {
     createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }>;
