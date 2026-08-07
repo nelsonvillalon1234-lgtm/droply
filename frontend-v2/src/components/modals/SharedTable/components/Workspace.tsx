@@ -10,7 +10,20 @@ import RoomPanel from "./RoomPanel";
 import Device from "./Device";
 import TableItem from "./TableItem";
 import SharedYouTube from "./SharedYouTube";
-import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem as TableItemType, TransferPhase } from "../types";
+import DrawingBoard, { DrawingToolbar } from "./DrawingBoard";
+import type {
+    ActivityItem,
+    ChatMessage,
+    DeviceType,
+    DrawingDraft,
+    DrawingElement,
+    DrawingFontFamily,
+    DrawingTool,
+    DrawingUpdate,
+    SharedMedia,
+    TableItem as TableItemType,
+    TransferPhase,
+} from "../types";
 import deviceId from "../../../../services/device";
 import type { PersistedFileHandle } from "../../../../services/fileSourceStore";
 
@@ -41,6 +54,11 @@ type Props = {
     onMediaControl: (playing: boolean, currentTime: number) => void;
     onMediaMove: (x: number, y: number) => void;
     onMediaRemove: () => void;
+    drawings: DrawingElement[];
+    onAddDrawing: (drawing: DrawingDraft) => void;
+    onUpdateDrawing: (drawing: DrawingUpdate) => void;
+    onRemoveDrawing: (drawingId: string) => void;
+    onToggleDrawingLock: (drawingId: string, locked: boolean) => void;
     canChooseDownloadFolder: boolean;
     downloadFolderName: string | null;
     showDownloadFolderPrompt: boolean;
@@ -64,6 +82,7 @@ export default function Workspace(props: Props) {
         onMoveItem, onCancelDownload, onSendMessage, onCreateWorkspaceItem,
         activity, canUndo, onUndo, onRenameItem, onDeleteItem, onRestoreItem, onDisconnect, recentRooms,
         sharedMedia, onCreateMedia, onMediaControl, onMediaMove, onMediaRemove,
+        drawings, onAddDrawing, onUpdateDrawing, onRemoveDrawing, onToggleDrawingLock,
         canChooseDownloadFolder, downloadFolderName, showDownloadFolderPrompt,
         onChooseDownloadFolder, onDismissDownloadFolder, hasSourcesToRestore, onRestoreSources } = props;
     const viewportRef = useRef<HTMLDivElement>(null);
@@ -87,6 +106,14 @@ export default function Workspace(props: Props) {
     const [chatOpen, setChatOpen] = useState(false);
     const [message, setMessage] = useState("");
     const [theater, setTheater] = useState(false);
+    const drawingActive = true;
+    const [drawingTool, setDrawingTool] = useState<DrawingTool>("select");
+    const [drawingStroke, setDrawingStroke] = useState("#111827");
+    const [drawingFill, setDrawingFill] = useState("transparent");
+    const [drawingStrokeWidth, setDrawingStrokeWidth] = useState(4);
+    const [drawingFontFamily, setDrawingFontFamily] = useState<DrawingFontFamily>("Arial");
+    const [drawingFontSize, setDrawingFontSize] = useState(28);
+    const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
     const workspaceRef = useRef<HTMLElement>(null);
     const previousDevicesRef = useRef<DeviceType[]>(devices);
     const [departingDevices, setDepartingDevices] = useState<DeviceType[]>([]);
@@ -118,6 +145,8 @@ export default function Workspace(props: Props) {
     const results = normalizedQuery ? items.filter(item => !item.deleted && item.name.toLocaleLowerCase().includes(normalizedQuery)) : [];
     const folder = currentFolder ? items.find(item => item.id === currentFolder) : null;
     const folderItems = currentFolder ? items.filter(item => !item.deleted && item.parentId === currentFolder) : [];
+    const selectedDrawing = drawings.find(drawing => drawing.id === selectedDrawingId) ?? null;
+    const canvasView = view === "files" || view === "folders" || view === "shared";
     const minimapViewport = {
         left: Math.max(0, Math.min(MINIMAP_WIDTH, (-camera.x / camera.zoom) * MINIMAP_WIDTH / WORLD_WIDTH)),
         top: Math.max(0, Math.min(MINIMAP_HEIGHT, (-camera.y / camera.zoom) * MINIMAP_HEIGHT / WORLD_HEIGHT)),
@@ -358,6 +387,61 @@ export default function Workspace(props: Props) {
         if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     }
 
+    function changeDrawingStroke(color: string) {
+        setDrawingStroke(color);
+        if (selectedDrawing && !selectedDrawing.locked) {
+            onUpdateDrawing({ id: selectedDrawing.id, stroke: color });
+        }
+    }
+
+    function changeDrawingFill(color: string) {
+        setDrawingFill(color);
+        if (selectedDrawing && !selectedDrawing.locked && selectedDrawing.type !== "pencil" && selectedDrawing.type !== "line" && selectedDrawing.type !== "text") {
+            onUpdateDrawing({ id: selectedDrawing.id, fill: color });
+        }
+    }
+
+    function changeDrawingStrokeWidth(width: number) {
+        setDrawingStrokeWidth(width);
+        if (selectedDrawing && !selectedDrawing.locked) {
+            onUpdateDrawing({ id: selectedDrawing.id, strokeWidth: width });
+        }
+    }
+
+    function changeDrawingFontFamily(font: DrawingFontFamily) {
+        setDrawingFontFamily(font);
+        if (selectedDrawing?.type === "text" && !selectedDrawing.locked) {
+            onUpdateDrawing({ id: selectedDrawing.id, fontFamily: font });
+        }
+    }
+
+    function changeDrawingFontSize(size: number) {
+        setDrawingFontSize(size);
+        if (selectedDrawing?.type === "text" && !selectedDrawing.locked) {
+            const previousSize = selectedDrawing.fontSize ?? 28;
+            const ratio = size / Math.max(1, previousSize);
+            onUpdateDrawing({
+                id: selectedDrawing.id,
+                fontSize: size,
+                width: Math.max(40, selectedDrawing.width * ratio),
+                height: Math.max(12, selectedDrawing.height * ratio),
+            });
+        }
+    }
+
+    function selectDrawing(drawingId: string | null) {
+        setSelectedDrawingId(drawingId);
+        const drawing = drawings.find(entry => entry.id === drawingId);
+        if (!drawing) return;
+        setDrawingStroke(drawing.stroke);
+        setDrawingFill(drawing.fill);
+        setDrawingStrokeWidth(drawing.strokeWidth);
+        if (drawing.type === "text") {
+            setDrawingFontFamily(drawing.fontFamily ?? "Arial");
+            setDrawingFontSize(drawing.fontSize ?? 28);
+        }
+    }
+
     return <main ref={workspaceRef} className="workspace" onClick={() => setContextMenu(null)}>
         <div className="workspace-background" />
         {!hasRoom && <CenterAction creating={creatingRoom} onCreateRoom={onCreateRoom} onJoinRoom={onJoinRoom} recentRooms={recentRooms} />}
@@ -381,7 +465,7 @@ export default function Workspace(props: Props) {
                     <button className="download-destination-action" onClick={onChooseDownloadFolder}>{downloadFolderName ? "Cambiar" : "Elegir carpeta"}</button>
                 </div>}
                 <div className="space-health"><strong>Disponibilidad</strong><span>● {Math.round((devices.length / 4) * 100)}% de la mesa conectada</span></div>
-                <small className="workspace-version">Droply beta · v0.6.0</small>
+                <small className="workspace-version">Droply beta · v0.7.1</small>
             </aside>
 
             <div className="workspace-search">
@@ -395,7 +479,69 @@ export default function Workspace(props: Props) {
             <div ref={viewportRef} className={`workspace-viewport ${panRef.current ? "is-panning" : ""}`}
                 onClick={e => { e.stopPropagation(); if(suppressNextCanvasClickRef.current){suppressNextCanvasClickRef.current=false;return;} if (contextMenu) setContextMenu(null); }}
                 onWheel={e => { if (!e.ctrlKey) setCamera(c => clampCamera({...c, x:c.x-e.deltaX, y:c.y-e.deltaY})); }}
-                onPointerDown={e => { const target=e.target as HTMLElement; if(target.closest(".shared-youtube"))return; if(e.pointerType==="touch"){touchPointersRef.current.add(e.pointerId);if(touchPointersRef.current.size>1){multitouchGestureRef.current=true;touchTapRef.current=null;if(longPressRef.current){clearTimeout(longPressRef.current.timer);longPressRef.current=null;}panRef.current=null;return;}} if (e.button === 1 || !target.closest(".table-item, button, input, textarea")) { e.currentTarget.setPointerCapture(e.pointerId); panRef.current = { x:e.clientX, y:e.clientY, cameraX:camera.x, cameraY:camera.y }; if(e.pointerType==="touch"&&!multitouchGestureRef.current)touchTapRef.current={pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,moved:false}; } }}
+                onPointerDown={event => {
+    const target = event.target as HTMLElement;
+
+    if (target.closest(".shared-youtube")) {
+        return;
+    }
+
+    if (event.pointerType === "touch") {
+        touchPointersRef.current.add(event.pointerId);
+
+        if (touchPointersRef.current.size > 1) {
+            multitouchGestureRef.current = true;
+            touchTapRef.current = null;
+
+            if (longPressRef.current) {
+                clearTimeout(longPressRef.current.timer);
+                longPressRef.current = null;
+            }
+
+            panRef.current = null;
+            return;
+        }
+    }
+
+    const clickedInteractiveElement = Boolean(
+        target.closest(
+            ".table-item, .drawing-inline-editor, button, input, textarea, select",
+        ),
+    );
+
+    const leftClickOnCanvas =
+        event.button === 0 &&
+        !clickedInteractiveElement;
+
+    const middleClick = event.button === 1;
+
+    if (!leftClickOnCanvas && !middleClick) {
+        return;
+    }
+
+    event.currentTarget.setPointerCapture(
+        event.pointerId,
+    );
+
+    panRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+        cameraX: camera.x,
+        cameraY: camera.y,
+    };
+
+    if (
+        event.pointerType === "touch" &&
+        !multitouchGestureRef.current
+    ) {
+        touchTapRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            moved: false,
+        };
+    }
+}}
                 onPointerMove={e => { const tap=touchTapRef.current;if(tap?.pointerId===e.pointerId&&Math.hypot(e.clientX-tap.startX,e.clientY-tap.startY)>14)tap.moved=true; const p=panRef.current; if(p) setCamera(c=>clampCamera({...c,x:p.cameraX+e.clientX-p.x,y:p.cameraY+e.clientY-p.y})); }}
                 onPointerUp={e => { const wasMultitouch=multitouchGestureRef.current;const tap=touchTapRef.current;if(e.pointerType==="touch"&&tap?.pointerId===e.pointerId&&!tap.moved&&!wasMultitouch){const p=screenToWorld(e.clientX,e.clientY);suppressNextCanvasClickRef.current=true;setContextMenu({clientX:e.clientX,clientY:e.clientY,...p});}touchTapRef.current=null;if(e.pointerType==="touch"){touchPointersRef.current.delete(e.pointerId);if(touchPointersRef.current.size===0)multitouchGestureRef.current=false;} panRef.current=null; }}
                 onPointerCancel={e => { touchTapRef.current=null;if(longPressRef.current){clearTimeout(longPressRef.current.timer);longPressRef.current=null;} if(e.pointerType==="touch"){touchPointersRef.current.delete(e.pointerId);if(touchPointersRef.current.size===0)multitouchGestureRef.current=false;} panRef.current=null; }}
@@ -411,7 +557,54 @@ export default function Workspace(props: Props) {
                         transferPhase={downloadItemId===item.id ? downloadPhase : "idle"}
                         downloadComplete={downloadItemId===item.id && downloadComplete}/>}) }
                     {sharedMedia&&!theater&&<SharedYouTube media={sharedMedia} scale={camera.zoom} onControl={onMediaControl} onMove={onMediaMove} onRemove={onMediaRemove} onToggleTheater={enterTheater}/>}
+                    {canvasView && (
+                        <DrawingBoard
+                            drawings={drawings}
+                            active={drawingActive}
+                            tool={drawingTool}
+                            stroke={drawingStroke}
+                            fill={drawingFill}
+                            strokeWidth={drawingStrokeWidth}
+                            fontFamily={drawingFontFamily}
+                            fontSize={drawingFontSize}
+                            scale={camera.zoom}
+                            selectedId={selectedDrawingId}
+                            onSelect={selectDrawing}
+                            onCreate={onAddDrawing}
+                            onUpdate={onUpdateDrawing}
+                            onDelete={drawingId => {
+                                onRemoveDrawing(drawingId);
+                                if (selectedDrawingId === drawingId) setSelectedDrawingId(null);
+                            }}
+                        />
+                    )}
                 </div>
+
+                {!theater && canvasView && (
+                    <DrawingToolbar
+    tool={drawingTool}
+    stroke={drawingStroke}
+    fill={drawingFill}
+    strokeWidth={drawingStrokeWidth}
+    fontFamily={drawingFontFamily}
+    fontSize={drawingFontSize}
+    selected={selectedDrawing}
+    currentUserId={deviceId}
+    onToolChange={setDrawingTool}
+    onStrokeChange={changeDrawingStroke}
+    onFillChange={changeDrawingFill}
+    onStrokeWidthChange={changeDrawingStrokeWidth}
+    onFontFamilyChange={changeDrawingFontFamily}
+    onFontSizeChange={changeDrawingFontSize}
+    onToggleLock={drawing =>
+        onToggleDrawingLock(drawing.id, !drawing.locked)
+    }
+    onDeleteSelected={drawing => {
+        onRemoveDrawing(drawing.id);
+        setSelectedDrawingId(null);
+    }}
+/>
+                )}
             </div>
 
             {view==="activity"&&<aside className="workspace-data-panel"><header><Activity size={18}/><strong>Actividad reciente</strong></header>{activity.length?activity.map(entry=><div className="activity-row" key={entry.id}><span>{entry.text}</span><small>{new Date(entry.createdAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</small></div>):<p>Aún no hay actividad en esta mesa.</p>}</aside>}
@@ -431,6 +624,7 @@ export default function Workspace(props: Props) {
                 <header><Map size={14}/><span>Mapa</span></header>
                 <div className="workspace-minimap-track">
                     {items.filter(item=>!item.deleted).map(item=><i key={item.id} className={`is-${item.type}`} style={{left:`${Math.max(0,Math.min(ITEM_MAX_X,item.x))*100/WORLD_WIDTH}%`,top:`${Math.max(0,Math.min(ITEM_MAX_Y,item.y))*100/WORLD_HEIGHT}%`}} />)}
+                    {drawings.map(drawing=><i key={drawing.id} className="is-drawing" style={{left:`${Math.max(0,Math.min(WORLD_WIDTH,drawing.x))*100/WORLD_WIDTH}%`,top:`${Math.max(0,Math.min(WORLD_HEIGHT,drawing.y))*100/WORLD_HEIGHT}%`}} />)}
                     <b style={{left:minimapViewport.left,top:minimapViewport.top,width:Math.max(12,minimapViewport.width),height:Math.max(10,minimapViewport.height)}} />
                 </div>
             </div>

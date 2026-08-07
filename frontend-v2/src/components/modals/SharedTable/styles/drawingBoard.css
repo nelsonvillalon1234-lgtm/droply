@@ -1,0 +1,749 @@
+.drawing-board {
+    position: absolute;
+    inset: 0;
+    z-index: 32;
+    overflow: visible;
+    pointer-events: none;
+    touch-action: none;
+}
+
+.drawing-board.is-active {
+    pointer-events: auto;
+}
+/*
+ * Al seleccionar o borrar, el fondo de la pizarra deja pasar
+ * los clics hacia archivos, carpetas, notas y videos.
+ */
+.drawing-board.is-tool-select,
+.drawing-board.is-tool-eraser {
+    pointer-events: none;
+}
+
+/*
+ * Los dibujos continúan siendo seleccionables aunque el fondo
+ * transparente de la pizarra no capture los clics.
+ */
+.drawing-board.is-tool-select [data-drawing-id],
+.drawing-board.is-tool-eraser [data-drawing-id] {
+    pointer-events: visiblePainted;
+}
+
+.drawing-board.is-tool-select .drawing-resize-handle {
+    pointer-events: all;
+}
+
+.drawing-text-editor-object,
+.drawing-inline-editor {
+    pointer-events: all;
+}
+
+.drawing-board.is-tool-select {
+    cursor: default;
+}
+
+.drawing-board.is-tool-pencil,
+.drawing-board.is-tool-line,
+.drawing-board.is-tool-rectangle,
+.drawing-board.is-tool-ellipse,
+.drawing-board.is-tool-text {
+    cursor: crosshair;
+}
+
+.drawing-board.is-tool-eraser {
+    cursor: cell;
+}
+
+/* =========================================================
+   ELEMENTOS DEL LIENZO
+   ========================================================= */
+
+.drawing-shape {
+    pointer-events: visiblePainted;
+}
+
+.drawing-text {
+    user-select: none;
+    pointer-events: visiblePainted;
+}
+
+.drawing-selection-box {
+    fill: transparent;
+    stroke: #665cf6;
+    stroke-width: 1.5;
+    stroke-dasharray: 5 4;
+    pointer-events: none;
+}
+
+.drawing-resize-handle {
+    fill: #ffffff;
+    stroke: #665cf6;
+    stroke-width: 2;
+    cursor: nwse-resize;
+    pointer-events: all;
+}
+
+[data-resize-handle="ne"],
+[data-resize-handle="sw"] {
+    cursor: nesw-resize;
+}
+
+/* =========================================================
+   INDICADOR DE ELEMENTO BLOQUEADO
+   ========================================================= */
+
+.drawing-lock-badge {
+    pointer-events: none;
+}
+
+.drawing-lock-badge circle {
+    fill: #665cf6;
+    stroke: #ffffff;
+    stroke-width: 1.5;
+}
+
+.drawing-lock-badge path {
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* =========================================================
+   BARRA DE HERRAMIENTAS FIJA
+   No se desplaza ni cambia de tamaño con el lienzo.
+   ========================================================= */
+
+.drawing-toolbar {
+    position: absolute;
+    left: 236px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 175;
+
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    width: fit-content;
+    max-width: calc(100% - 254px);
+    min-height: 52px;
+    padding: 7px 8px;
+
+    border: 1px solid rgba(24, 24, 38, 0.1);
+    border-radius: 17px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow:
+        0 18px 48px rgba(22, 22, 42, 0.2),
+        0 2px 8px rgba(22, 22, 42, 0.08);
+
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+
+    animation: drawing-toolbar-in 0.18s ease-out;
+}
+
+.drawing-toolbar-scroll {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+}
+
+.drawing-toolbar-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.drawing-toolbar-tools {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+}
+
+/* =========================================================
+   BOTONES
+   ========================================================= */
+
+.drawing-toolbar button {
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.drawing-toolbar button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.drawing-toolbar-tools button,
+.drawing-lock-button,
+.drawing-delete-button {
+    display: grid;
+    place-items: center;
+
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+
+    border-radius: 10px;
+    background: transparent;
+    color: #676779;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease,
+        transform 0.15s ease;
+}
+
+.drawing-toolbar-tools button:hover,
+.drawing-lock-button:hover,
+.drawing-delete-button:hover {
+    background: #f0efff;
+    color: #5148d8;
+}
+
+.drawing-toolbar-tools button:active,
+.drawing-lock-button:active,
+.drawing-delete-button:active {
+    transform: scale(0.94);
+}
+
+.drawing-toolbar-tools button.is-active {
+    background: #5f55e7;
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(95, 85, 231, 0.28);
+}
+
+.drawing-lock-button.is-locked {
+    background: #eceaff;
+    color: #5148d8;
+}
+
+.drawing-delete-button:hover:not(:disabled) {
+    background: #fff0f0;
+    color: #d84b4b;
+}
+
+.drawing-toolbar-separator {
+    width: 1px;
+    height: 28px;
+    flex: 0 0 auto;
+    background: #e5e5ec;
+}
+
+/* =========================================================
+   SELECTORES DE COLOR
+   ========================================================= */
+
+.drawing-color-control {
+    position: relative;
+
+    display: grid;
+    place-items: center;
+
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+
+    cursor: pointer;
+}
+
+.drawing-color-control > span {
+    width: 22px;
+    height: 22px;
+
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+
+    box-shadow: 0 0 0 1px rgba(15, 15, 25, 0.2);
+}
+
+.drawing-fill-control > span {
+    border-radius: 7px;
+}
+
+.drawing-color-control input {
+    position: absolute;
+
+    width: 1px;
+    height: 1px;
+
+    opacity: 0;
+    pointer-events: none;
+}
+
+.drawing-transparent-button {
+    height: 31px;
+    padding: 0 9px;
+    flex: 0 0 auto;
+
+    border-radius: 9px;
+    background: #f4f4f7;
+    color: #757586;
+
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.drawing-transparent-button:hover {
+    background: #eceaff;
+    color: #5148d8;
+}
+
+.drawing-transparent-button.is-active {
+    background: #eceaff;
+    color: #5148d8;
+}
+
+/* =========================================================
+   GROSOR DEL TRAZO
+   ========================================================= */
+
+.drawing-width-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    flex: 0 0 auto;
+}
+
+.drawing-width-control input {
+    width: 72px;
+    accent-color: #5f55e7;
+}
+
+.drawing-width-control strong {
+    width: 18px;
+
+    color: #666678;
+    font-size: 11px;
+    text-align: center;
+}
+
+/* =========================================================
+   TIPOGRAFÍA
+   ========================================================= */
+
+.drawing-font-select {
+    height: 34px;
+    max-width: 145px;
+    flex: 0 0 auto;
+
+    padding: 0 28px 0 9px;
+
+    border: 1px solid #dedee7;
+    border-radius: 9px;
+
+    background: #ffffff;
+    color: #4e4e60;
+
+    outline: none;
+    cursor: pointer;
+}
+
+.drawing-font-select:focus {
+    border-color: #665cf6;
+    box-shadow: 0 0 0 3px rgba(102, 92, 246, 0.1);
+}
+
+.drawing-font-size {
+    display: flex;
+    align-items: center;
+
+    height: 34px;
+    flex: 0 0 auto;
+
+    border: 1px solid #dedee7;
+    border-radius: 9px;
+
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.drawing-font-size:focus-within {
+    border-color: #665cf6;
+    box-shadow: 0 0 0 3px rgba(102, 92, 246, 0.1);
+}
+
+.drawing-font-size input {
+    width: 48px;
+    height: 100%;
+
+    padding: 0 4px 0 8px;
+
+    border: 0;
+    outline: 0;
+
+    background: transparent;
+    color: #4e4e60;
+}
+
+.drawing-font-size span {
+    padding-right: 7px;
+
+    color: #8b8b99;
+    font-size: 10px;
+}
+
+/* =========================================================
+   EDITOR DE TEXTO SOBRE EL LIENZO
+   Reemplaza el prompt del navegador.
+   ========================================================= */
+
+.drawing-text-editor-object {
+    overflow: visible;
+    pointer-events: all;
+}
+
+.drawing-inline-editor {
+    box-sizing: border-box;
+
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    width: 100%;
+    min-height: 50px;
+    padding: 6px;
+
+    border: 2px solid #665cf6;
+    border-radius: 13px;
+
+    background: rgba(255, 255, 255, 0.98);
+
+    box-shadow:
+        0 12px 35px rgba(35, 32, 80, 0.2),
+        0 0 0 4px rgba(102, 92, 246, 0.1);
+
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.drawing-inline-editor input {
+    min-width: 0;
+    height: 38px;
+    flex: 1;
+
+    padding: 0 10px;
+
+    border: 0;
+    border-radius: 8px;
+
+    background: transparent;
+    outline: none;
+
+    font-weight: 600;
+}
+
+.drawing-inline-editor input::placeholder {
+    color: #9b9baa;
+    font-weight: 500;
+}
+
+.drawing-inline-editor button {
+    display: grid;
+    place-items: center;
+
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+
+    border: 0;
+    border-radius: 10px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease,
+        transform 0.15s ease;
+}
+
+.drawing-inline-editor button:active {
+    transform: scale(0.93);
+}
+
+.drawing-text-confirm {
+    background: #665cf6;
+    color: #ffffff;
+}
+
+.drawing-text-confirm:hover {
+    background: #564ce8;
+}
+
+.drawing-text-cancel {
+    background: #f1f1f5;
+    color: #69697b;
+}
+
+.drawing-text-cancel:hover {
+    background: #ffecec;
+    color: #d84b4b;
+}
+
+/* =========================================================
+   ANIMACIÓN
+   ========================================================= */
+
+@keyframes drawing-toolbar-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 1050px) {
+    .drawing-toolbar {
+        left: 210px;
+        right: 14px;
+        max-width: calc(100% - 224px);
+    }
+
+    .drawing-font-select {
+        max-width: 125px;
+    }
+
+    .drawing-width-control input {
+        width: 60px;
+    }
+}
+
+@media (max-width: 850px) {
+    .drawing-toolbar {
+        left: 16px;
+        right: 16px;
+        bottom: 74px;
+
+        width: auto;
+        max-width: none;
+    }
+
+    .drawing-toolbar-scroll {
+        flex: 1;
+    }
+}
+
+/* =========================================================
+   CELULAR
+   ========================================================= */
+
+@media (max-width: 600px) {
+    .drawing-toolbar {
+        left: 12px;
+        right: 12px;
+        bottom: 76px;
+
+        width: auto;
+        max-width: none;
+        min-height: 48px;
+        padding: 5px 6px;
+
+        border-radius: 14px;
+    }
+
+    .drawing-toolbar-scroll {
+        flex: 1;
+        gap: 5px;
+    }
+
+    .drawing-toolbar-tools {
+        gap: 2px;
+    }
+
+    .drawing-toolbar-tools button,
+    .drawing-lock-button,
+    .drawing-delete-button {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+    }
+
+    .drawing-toolbar-separator {
+        height: 24px;
+    }
+
+    .drawing-color-control {
+        width: 30px;
+        height: 30px;
+    }
+
+    .drawing-color-control > span {
+        width: 20px;
+        height: 20px;
+    }
+
+    .drawing-transparent-button {
+        height: 30px;
+        padding: 0 7px;
+        font-size: 10px;
+    }
+
+    .drawing-width-control {
+        gap: 4px;
+    }
+
+    .drawing-width-control input {
+        width: 54px;
+    }
+
+    .drawing-font-select {
+        max-width: 115px;
+        height: 32px;
+    }
+
+    .drawing-font-size {
+        height: 32px;
+    }
+
+    .drawing-font-size input {
+        width: 43px;
+    }
+
+    .drawing-inline-editor {
+        min-height: 46px;
+        padding: 5px;
+        border-radius: 11px;
+    }
+
+    .drawing-inline-editor input {
+        height: 34px;
+        padding: 0 8px;
+    }
+
+    .drawing-inline-editor button {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+    }
+}
+
+/* =========================================================
+   PALETA COMPACTA SOBRE EL MAPA
+   ========================================================= */
+
+.drawing-toolbar {
+    left: 20px;
+    right: auto;
+    bottom: 258px;
+
+    display: block;
+
+    width: 206px;
+    max-width: 206px;
+    min-height: 0;
+    padding: 8px;
+
+    transform: none;
+    border-radius: 15px;
+}
+
+.drawing-toolbar-scroll {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+
+    width: 100%;
+    max-width: 100%;
+    gap: 6px;
+
+    overflow: visible;
+}
+
+.drawing-toolbar-tools {
+    display: grid;
+    grid-template-columns: repeat(4, 36px);
+    justify-content: center;
+
+    width: 100%;
+    gap: 4px;
+}
+
+.drawing-toolbar-separator {
+    display: none;
+}
+
+.drawing-transparent-button {
+    flex: 1 1 auto;
+}
+
+.drawing-width-control {
+    width: 100%;
+    justify-content: center;
+}
+
+.drawing-width-control input {
+    width: 140px;
+}
+
+.drawing-font-select {
+    width: 100%;
+    max-width: 100%;
+    flex: 1 1 100%;
+}
+
+.drawing-font-size {
+    flex: 1 1 auto;
+}
+
+.drawing-lock-button,
+.drawing-delete-button {
+    flex: 0 0 auto;
+}
+
+/* Cuando aparece el editor de texto, se mantiene sobre el lienzo. */
+.drawing-text-editor-object {
+    pointer-events: all;
+}
+
+/* Tablet: coincide con la posición del mapa. */
+@media (max-width: 850px) {
+    .drawing-toolbar {
+        left: 16px;
+        right: auto;
+        bottom: 258px;
+
+        width: 206px;
+        max-width: 206px;
+    }
+}
+
+/* Celular: queda arriba del mapa y de la navegación inferior. */
+@media (max-width: 600px) {
+    .drawing-toolbar {
+        left: 12px;
+        right: auto;
+        bottom: 250px;
+
+        width: min(206px, calc(100vw - 24px));
+        max-width: min(206px, calc(100vw - 24px));
+        padding: 7px;
+    }
+
+    .drawing-toolbar-tools {
+        grid-template-columns: repeat(4, 34px);
+    }
+
+    .drawing-width-control input {
+        width: 130px;
+    }
+}

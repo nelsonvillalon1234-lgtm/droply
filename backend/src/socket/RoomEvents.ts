@@ -21,20 +21,59 @@ type TableItem = {
     deleted?: boolean;
 };
 type SharedMedia = { id: string; videoId: string; x: number; y: number; playing: boolean; currentTime: number; updatedAt: number; updatedBy: string };
+type DrawingKind = "pencil" | "line" | "rectangle" | "ellipse" | "text";
+type DrawingFontFamily = "Arial" | "Georgia" | "Trebuchet MS" | "Times New Roman" | "Courier New";
+type DrawingPoint = { x: number; y: number };
+type DrawingElement = {
+    id: string;
+    type: DrawingKind;
+    ownerId: string;
+    ownerName: string;
+    stroke: string;
+    fill: string;
+    strokeWidth: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    points?: DrawingPoint[];
+    text?: string;
+    fontFamily?: DrawingFontFamily;
+    fontSize?: number;
+    locked: boolean;
+    lockedBy?: string | null;
+    lockedByName?: string | null;
+    createdAt: number;
+    updatedAt: number;
+};
 
 const roomDevices = new Map<string, Map<string, RoomDevice>>();
 const roomItems = new Map<string, Map<string, TableItem>>();
 const roomMedia = new Map<string, SharedMedia>();
+const roomDrawings = new Map<string, Map<string, DrawingElement>>();
 const cleanupTimer = setInterval(() => {
     for (const code of RoomManager.pruneExpiredRooms()) {
         roomDevices.delete(code);
         roomItems.delete(code);
         roomMedia.delete(code);
+        roomDrawings.delete(code);
     }
 }, 10 * 60_000);
 cleanupTimer.unref();
 const allowMutation = createRateLimiter(180, 60_000);
 const allowChat = createRateLimiter(40, 60_000);
+
+function pauseRoomMedia(code: string) {
+    const media = roomMedia.get(code);
+    if (!media?.playing) return;
+    const elapsed = Math.max(0, Math.min((Date.now() - media.updatedAt) / 1000, 2 * 60 * 60));
+    roomMedia.set(code, {
+        ...media,
+        playing: false,
+        currentTime: media.currentTime + elapsed,
+        updatedAt: Date.now(),
+    });
+}
 
 function sanitizeDevice(socket: Socket, input: unknown): RoomDevice | null {
     if (!input || typeof input !== "object") return null;
@@ -76,6 +115,77 @@ function sanitizeItem(input: unknown, owner: RoomDevice): TableItem | null {
     };
 }
 
+const DRAWING_TYPES: DrawingKind[] = ["pencil", "line", "rectangle", "ellipse", "text"];
+const DRAWING_FONTS: DrawingFontFamily[] = ["Arial", "Georgia", "Trebuchet MS", "Times New Roman", "Courier New"];
+
+function sanitizeDrawingColor(value: unknown, fallback: string) {
+    if (value === "transparent") return "transparent";
+    return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
+}
+
+function sanitizeDrawingPoints(value: unknown, required: boolean) {
+    if (!Array.isArray(value)) return required ? null : undefined;
+    const points: DrawingPoint[] = [];
+    for (const rawPoint of value.slice(0, 1500)) {
+        if (!rawPoint || typeof rawPoint !== "object") return null;
+        const point = rawPoint as Record<string, unknown>;
+        const x = finiteNumber(point.x, 0, 1);
+        const y = finiteNumber(point.y, 0, 1);
+        if (x === null || y === null) return null;
+        points.push({ x, y });
+    }
+    return points;
+}
+
+function sanitizeDrawing(input: unknown, owner: RoomDevice, previous?: DrawingElement): DrawingElement | null {
+    if (!input || typeof input !== "object") return null;
+    const value = input as Record<string, unknown>;
+    if (!isSafeId(value.id) || !DRAWING_TYPES.includes(value.type as DrawingKind)) return null;
+
+    const type = value.type as DrawingKind;
+    const x = finiteNumber(value.x, 0, 5200);
+    const y = finiteNumber(value.y, 0, 3600);
+    const width = finiteNumber(value.width, 1, 5200);
+    const height = finiteNumber(value.height, 1, 3600);
+    const strokeWidth = finiteNumber(value.strokeWidth, 1, 14);
+    if (x === null || y === null || width === null || height === null || strokeWidth === null) return null;
+
+    const points = sanitizeDrawingPoints(value.points, type === "pencil" || type === "line");
+    if ((type === "pencil" || type === "line") && (!points || points.length < 2)) return null;
+
+    const text = type === "text" ? cleanText(value.text, 300) : undefined;
+    if (type === "text" && !text) return null;
+
+    const fontFamily = DRAWING_FONTS.includes(value.fontFamily as DrawingFontFamily)
+        ? value.fontFamily as DrawingFontFamily
+        : "Arial";
+    const fontSize = finiteNumber(value.fontSize ?? 28, 12, 180);
+    if (type === "text" && fontSize === null) return null;
+
+    return {
+        id: value.id as string,
+        type,
+        ownerId: previous?.ownerId ?? owner.id,
+        ownerName: previous?.ownerName ?? owner.name,
+        stroke: sanitizeDrawingColor(value.stroke, "#111827"),
+        fill: sanitizeDrawingColor(value.fill, "transparent"),
+        strokeWidth,
+        x,
+        y,
+        width,
+        height,
+        points: points ?? undefined,
+        text: text ?? undefined,
+        fontFamily: type === "text" ? fontFamily : undefined,
+        fontSize: type === "text" ? fontSize ?? 28 : undefined,
+        locked: previous?.locked ?? false,
+        lockedBy: previous?.lockedBy ?? null,
+        lockedByName: previous?.lockedByName ?? null,
+        createdAt: previous?.createdAt ?? Date.now(),
+        updatedAt: Date.now(),
+    };
+}
+
 export default function registerRoomEvents(socket: Socket) {
     socket.on("create-room", (deviceInput?: unknown) => {
         const wrapper = deviceInput && typeof deviceInput === "object" && "device" in deviceInput
@@ -89,6 +199,7 @@ export default function registerRoomEvents(socket: Socket) {
         socket.join(code);
         socket.data.roomCode = code;
         roomItems.set(code, new Map());
+        roomDrawings.set(code, new Map());
         if (device) {
             socket.data.roomDevice = device;
             roomDevices.set(code, new Map([[socket.id, device]]));
@@ -113,12 +224,14 @@ if (!requestedRoom) {
     roomDevices.delete(code);
     roomItems.delete(code);
     roomMedia.delete(code);
+    roomDrawings.delete(code);
 }
 
 if (requestedRoom?.purpose === "table") {
     const connectedDevices = roomDevices.get(code);
 
     if (!connectedDevices || connectedDevices.size === 0) {
+        pauseRoomMedia(code);
         RoomManager.resetRoomMembers(code);
     }
 }
@@ -159,6 +272,7 @@ let restoredExistingDevice = false;
         if (joinedRoom?.expiresAt) socket.emit("room-expires-at", joinedRoom.expiresAt);
         socket.emit("room-items", [...(roomItems.get(code)?.values() ?? [])]);
         socket.emit("room-media", roomMedia.get(code) ?? null);
+        socket.emit("room-drawings", [...(roomDrawings.get(code)?.values() ?? [])]);
         socket.to(code).emit("receiver-connected");
     });
 
@@ -205,6 +319,90 @@ let restoredExistingDevice = false;
         if (!item) return;
         roomItems.get(room)?.set(item.id, item);
         socket.to(room).emit("table-item-updated", item);
+    });
+
+    socket.on("drawing-added", (input: unknown) => {
+        const room = socket.data.roomCode as string | undefined;
+        const owner = socket.data.roomDevice as RoomDevice | undefined;
+        if (!room || !owner || !allowMutation(socket, "drawing-add")) return;
+
+        const drawings = roomDrawings.get(room) ?? new Map<string, DrawingElement>();
+        if (drawings.size >= 750) return socket.emit("security-error", "La pizarra alcanzo su limite de elementos");
+
+        const drawing = sanitizeDrawing(input, owner);
+        if (!drawing || drawings.has(drawing.id)) return;
+
+        drawings.set(drawing.id, drawing);
+        roomDrawings.set(room, drawings);
+        socket.nsp.to(room).emit("drawing-added", drawing);
+    });
+
+    socket.on("drawing-updated", (input: unknown) => {
+        const room = socket.data.roomCode as string | undefined;
+        const sender = socket.data.roomDevice as RoomDevice | undefined;
+        if (!room || !sender || !input || typeof input !== "object" || !allowMutation(socket, "drawing-update")) return;
+
+        const value = input as Record<string, unknown>;
+        if (!isSafeId(value.id)) return;
+
+        const drawings = roomDrawings.get(room);
+        const previous = drawings?.get(value.id as string);
+        if (!drawings || !previous || previous.locked) return;
+
+        const drawing = sanitizeDrawing({ ...previous, ...value, id: previous.id, type: previous.type }, sender, previous);
+        if (!drawing) return;
+
+        drawings.set(drawing.id, drawing);
+        socket.nsp.to(room).emit("drawing-updated", drawing);
+    });
+
+    socket.on("drawing-lock", (input: unknown) => {
+        const room = socket.data.roomCode as string | undefined;
+        const sender = socket.data.roomDevice as RoomDevice | undefined;
+        if (!room || !sender || !input || typeof input !== "object" || !allowMutation(socket, "drawing-lock")) return;
+
+        const value = input as Record<string, unknown>;
+        if (!isSafeId(value.id) || typeof value.locked !== "boolean") return;
+
+        const drawings = roomDrawings.get(room);
+        const previous = drawings?.get(value.id as string);
+        if (!drawings || !previous) return;
+
+        if (!value.locked && previous.lockedBy !== sender.id) {
+            socket.emit("drawing-updated", previous);
+            return;
+        }
+
+        if (value.locked && previous.locked) {
+            socket.emit("drawing-updated", previous);
+            return;
+        }
+
+        const drawing: DrawingElement = {
+            ...previous,
+            locked: value.locked,
+            lockedBy: value.locked ? sender.id : null,
+            lockedByName: value.locked ? sender.name : null,
+            updatedAt: Date.now(),
+        };
+
+        drawings.set(drawing.id, drawing);
+        socket.nsp.to(room).emit("drawing-updated", drawing);
+    });
+
+    socket.on("drawing-removed", (input: unknown) => {
+        const room = socket.data.roomCode as string | undefined;
+        if (!room || !input || typeof input !== "object" || !allowMutation(socket, "drawing-remove")) return;
+
+        const id = (input as { id?: unknown }).id;
+        if (!isSafeId(id)) return;
+
+        const drawings = roomDrawings.get(room);
+        const drawing = drawings?.get(id as string);
+        if (!drawings || !drawing || drawing.locked) return;
+
+        drawings.delete(drawing.id);
+        socket.nsp.to(room).emit("drawing-removed", { id: drawing.id });
     });
 
     socket.on("chat-message", (input: unknown) => {
@@ -280,6 +478,7 @@ let restoredExistingDevice = false;
         if (!code) return;
         const members = roomDevices.get(code);
         members?.delete(socket.id);
+        if (!members?.size) pauseRoomMedia(code);
         RoomManager.leaveRoom(code, socket.id);
         socket.leave(code);
         socket.data.roomCode = undefined;
@@ -289,6 +488,7 @@ let restoredExistingDevice = false;
             roomDevices.delete(code);
             roomItems.delete(code);
             roomMedia.delete(code);
+            roomDrawings.delete(code);
         }
     });
 
@@ -297,12 +497,14 @@ let restoredExistingDevice = false;
         if (!code) return;
         const members = roomDevices.get(code);
         members?.delete(socket.id);
+        if (!members?.size) pauseRoomMedia(code);
         RoomManager.leaveRoom(code, socket.id);
         socket.to(code).emit("room-devices", [...(members?.values() ?? [])]);
         if (!members?.size && !RoomManager.getRoom(code)) {
             roomDevices.delete(code);
             roomItems.delete(code);
             roomMedia.delete(code);
+            roomDrawings.delete(code);
         }
     });
 }

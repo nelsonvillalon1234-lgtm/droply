@@ -1,6 +1,16 @@
 
 import { useEffect, useState } from "react";
-import type { ActivityItem, ChatMessage, DeviceType, SharedMedia, TableItem, TransferPhase } from "./types";
+import type {
+    ActivityItem,
+    ChatMessage,
+    DeviceType,
+    DrawingDraft,
+    DrawingElement,
+    DrawingUpdate,
+    SharedMedia,
+    TableItem,
+    TransferPhase,
+} from "./types";
 
 
 
@@ -89,6 +99,7 @@ export default function SharedTable({
     const roomRef = useRef(sessionStorage.getItem("droply-active-table") ?? "");
     const reconnectPendingRef = useRef(Boolean(roomRef.current));
     const joiningCodeRef = useRef("");
+    const mediaInstanceRef = useRef(0);
 
 const [
     downloadItemId,
@@ -130,6 +141,7 @@ const [hasSourcesToRestore, setHasSourcesToRestore] = useState(false);
 const [messages, setMessages] = useState<ChatMessage[]>([]);
 const [activity, setActivity] = useState<ActivityItem[]>([]);
 const [sharedMedia, setSharedMedia] = useState<SharedMedia | null>(null);
+const [drawings, setDrawings] = useState<DrawingElement[]>([]);
 const [mediaPreview, setMediaPreview] = useState<MediaPreviewFile | null>(null);
 const [largeFilePromptItem, setLargeFilePromptItem] = useState<TableItem | null>(null);
 const undoRef = useRef<TableItem | null>(null);
@@ -269,6 +281,7 @@ function handleCloseTable() {
     roomRef.current = "";
     reconnectPendingRef.current = false;
     PeerManager.reset();
+    setDrawings([]);
     setHasRoom(false);
     setRoomCode("");
     onClose();
@@ -419,12 +432,60 @@ function handleRestoreSources() {
 function handleCreateMedia(url: string, x: number, y: number) {
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/i);
     if (!match) return window.dispatchEvent(new CustomEvent("droply-toast", { detail: "Ese enlace de YouTube no es válido." }));
-    const media: SharedMedia = { id: crypto.randomUUID(), videoId: match[1], x, y, playing: false, currentTime: 0, updatedAt: Date.now(), updatedBy: deviceName };
+    const media: SharedMedia = { id: crypto.randomUUID(), videoId: match[1], x, y, playing: false, currentTime: 0, updatedAt: Date.now(), updatedBy: deviceName, instanceId: mediaInstanceRef.current };
     setSharedMedia(media); socket.emit("media-create", media); recordActivity(`${deviceName} agregó un video compartido`);
 }
 function handleMediaControl(playing: boolean, currentTime: number) { socket.emit("media-control", { playing, currentTime }); }
 function handleMediaMove(x: number, y: number) { setSharedMedia(current=>current?{...current,x,y}:null);socket.emit("media-moved",{x,y}); }
 function handleMediaRemove() { setSharedMedia(null);socket.emit("media-remove");recordActivity(`${deviceName} quitó el video compartido`); }
+
+function handleAddDrawing(draft: DrawingDraft) {
+    const drawing: DrawingElement = {
+        ...draft,
+        id: crypto.randomUUID(),
+        ownerId: deviceId,
+        ownerName: deviceName,
+        locked: false,
+        lockedBy: null,
+        lockedByName: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+    };
+
+    setDrawings(current => [...current, drawing]);
+    socket.emit("drawing-added", drawing);
+}
+
+function handleUpdateDrawing(update: DrawingUpdate) {
+    setDrawings(current => current.map(drawing =>
+        drawing.id === update.id && !drawing.locked
+            ? { ...drawing, ...update, updatedAt: Date.now() }
+            : drawing
+    ));
+    socket.emit("drawing-updated", update);
+}
+
+function handleRemoveDrawing(drawingId: string) {
+    const drawing = drawings.find(entry => entry.id === drawingId);
+    if (!drawing || drawing.locked) return;
+    setDrawings(current => current.filter(entry => entry.id !== drawingId));
+    socket.emit("drawing-removed", { id: drawingId });
+}
+
+function handleToggleDrawingLock(drawingId: string, locked: boolean) {
+    setDrawings(current => current.map(drawing =>
+        drawing.id === drawingId
+            ? {
+                  ...drawing,
+                  locked,
+                  lockedBy: locked ? deviceId : null,
+                  lockedByName: locked ? deviceName : null,
+                  updatedAt: Date.now(),
+              }
+            : drawing
+    ));
+    socket.emit("drawing-lock", { id: drawingId, locked });
+}
 
 function handleMoveItem(
     item: TableItem,
@@ -706,6 +767,7 @@ function handleDownload(item: TableItem) {
     socket.on("room-created", (code: string) => {
 
     console.log("✅ Sala creada:", code);
+    setDrawings([]);
 
     setRoomCode(code);
 
@@ -730,6 +792,7 @@ function handleDownload(item: TableItem) {
 
     reconnectPendingRef.current = false;
     joiningCodeRef.current = "";
+    mediaInstanceRef.current += 1;
 
     setHasRoom(true);
 
@@ -770,7 +833,23 @@ function handleDownload(item: TableItem) {
         setDevices(roomDevices);
     });
     socket.on("room-items", (roomItems: TableItem[]) => { void restoreOwnedSources(roomItems); });
-    socket.on("room-media", (media: SharedMedia | null) => setSharedMedia(media));
+    socket.on("room-media", (media: SharedMedia | null) => {
+        setSharedMedia(media ? { ...media, instanceId: mediaInstanceRef.current } : null);
+    });
+    socket.on("room-drawings", (roomDrawings: DrawingElement[]) => {
+        setDrawings(roomDrawings);
+    });
+    socket.on("drawing-added", (drawing: DrawingElement) => {
+        setDrawings(current => current.some(entry => entry.id === drawing.id)
+            ? current
+            : [...current, drawing]);
+    });
+    socket.on("drawing-updated", (drawing: DrawingElement) => {
+        setDrawings(current => current.map(entry => entry.id === drawing.id ? drawing : entry));
+    });
+    socket.on("drawing-removed", ({ id }: { id: string }) => {
+        setDrawings(current => current.filter(entry => entry.id !== id));
+    });
 
 socket.on("table-item-added", (item: TableItem) => {
 
@@ -965,6 +1044,10 @@ socket.on("download-unavailable", ({ itemId, reason }: { itemId: string; reason?
         socket.off("room-devices");
         socket.off("room-items");
         socket.off("room-media");
+        socket.off("room-drawings");
+        socket.off("drawing-added");
+        socket.off("drawing-updated");
+        socket.off("drawing-removed");
 
         socket.off("table-item-added");
         socket.off("table-item-updated");
@@ -1211,6 +1294,11 @@ if (fileEvent.detail.blob.size <= KEEP_RECEIVED_FILE_IN_MEMORY_LIMIT) {
     onMediaControl={handleMediaControl}
     onMediaMove={handleMediaMove}
     onMediaRemove={handleMediaRemove}
+    drawings={drawings}
+    onAddDrawing={handleAddDrawing}
+    onUpdateDrawing={handleUpdateDrawing}
+    onRemoveDrawing={handleRemoveDrawing}
+    onToggleDrawingLock={handleToggleDrawingLock}
     canChooseDownloadFolder={canChooseDownloadFolder}
     downloadFolderName={downloadFolderName}
     showDownloadFolderPrompt={showDownloadFolderPrompt}
